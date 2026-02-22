@@ -3,7 +3,7 @@ info:
   title: Schedio API
   version: 0.1.0
 servers:
-  - url: /
+  - url: '{{.ServerRootURL}}'
 paths:
   /healthz:
     get:
@@ -51,9 +51,3 @@ paths:
       responses:
         '204':
           description: Deleted
-  /swagger:
-    get:
-      summary: Swagger UI entrypoint
-      responses:
-        '200':
-          description: HTML UI

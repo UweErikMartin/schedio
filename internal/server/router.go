@@ -3,26 +3,41 @@ package server
 import (
 	"net/http"
 
+	"schedio/internal/caldav"
+	"schedio/internal/config"
 	"schedio/internal/handlers"
-	"schedio/web"
 )
 
-func NewRouter() http.Handler {
+// NewRouter builds the HTTP mux.
+// caldavHandler is the CalDAV facade handler created by the caller so that the
+// backing CalendarStore can be swapped out without changing the router itself.
+func NewRouter(args *config.Config, caldavHandler http.Handler) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
+	discovery := caldav.NewDiscoveryHandler(args.RootPath)
+
+	// RFC 6764 §5 – well-known redirect: clients probe this first.
+	mux.HandleFunc("/.well-known/caldav", discovery.WellKnownHandler)
+
+	// Apple iOS/macOS fallback path – redirect to the real CalDAV root.
+	mux.HandleFunc("/calendar/dav/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, args.RootPath+"/caldav/", http.StatusMovedPermanently)
 	})
 
-	mux.HandleFunc("GET /openapi.yaml", handlers.OpenAPISpec)
-	mux.Handle("/swagger", handlers.SwaggerUI())
-	mux.Handle("/swagger/", handlers.SwaggerUI())
+	// Principal URL – returns calendar-home-set so clients find the calendars.
+	mux.HandleFunc(args.RootPath+"/principals/", discovery.PrincipalsHandler)
 
-	mux.Handle("/caldav", handlers.CALDAV())
-	mux.Handle("/caldav/", handlers.CALDAV())
+	mux.HandleFunc(args.RootPath+"/healthz", handlers.HandleHealthz)
+	mux.Handle(args.RootPath+"/api/docs/", handlers.NewOpenAPIHandler(args.RootPath))
+	mux.Handle(args.RootPath+"/caldav/", caldavHandler)
 
-	mux.Handle("/", web.Handler())
+	// Root handler: intercept PROPFIND for discovery step 2, pass everything
+	// else through to the web UI.
+	webHandler := http.Handler(http.HandlerFunc(handlers.HandleWebUserInterface))
+	if args.RootPath != "" {
+		webHandler = http.StripPrefix(args.RootPath, webHandler)
+	}
+	mux.Handle(args.RootPath+"/", discovery.RootPropfindHandler(webHandler))
 
 	return mux
 }

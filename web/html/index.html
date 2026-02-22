@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>booking</title>
+  <link rel="stylesheet" href="css/styles.css" />
+  <script src="js/x-date-time-picker.js" type="module"></script>
+  <script src="js/x-service-picker.js" type="module"></script>
+  <script src="js/default.js" defer></script>
+</head>
+<body>
+  <main class="container content">
+    <section class="card">
+      <form method="post" action="bookings" class="form-grid">
+        <input id="service-value" type="hidden" name="service" />
+        <input id="booking-date" type="hidden" name="date" required />
+        <input id="booking-time" type="hidden" name="time" required />
+        <div class="full-width treatment-label">
+        Wähle die Behandlung, die du buchen möchtest und rufe Informationen zu den Behandlungen ab, um die richtige Wahl zu treffen.
+        <x-service-picker id="service-picker"></x-service-picker>
+        </div>
+
+        <label class="full-width">
+        Wähle einen passenden Termin und eine passende Uhrzeit aus.
+        <x-date-time-picker id="date-time-picker" data-availability-endpoint="availability"></x-date-time-picker>
+        </label>
+
+        <label>
+        Vollständiger Name *
+        <input type="text" name="fullName" required />
+        </label>
+
+        <label>
+        E-Mail *
+        <input type="email" name="email" required />
+        </label>
+
+        <label>
+        Telefon
+        <input type="tel" name="phone" />
+        </label>
+
+        <label class="full-width">
+        Notizen
+        <textarea name="notes" rows="4"></textarea>
+        </label>
+
+        <button class="button" type="submit">Weiter zu den Details</button>
+      </form>
+    </section>
+  </main>
+</body>
+</html>
