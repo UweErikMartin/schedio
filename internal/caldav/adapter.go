@@ -34,11 +34,12 @@ type storeAdapter struct {
 //
 // go-webdav determines resource types by counting path depth after stripping the
 // handler Prefix ("/caldav").  Correct depths:
-//   depth 0  /caldav/                          → server root
-//   depth 1  /caldav/user/                     → user principal
-//   depth 2  /caldav/user/calendars/           → calendar home set  ← ListCalendars
-//   depth 3  /caldav/user/calendars/<id>/      → calendar           ← ListCalendarObjects
-//   depth 4  /caldav/user/calendars/<id>/e.ics → calendar object
+//
+//	depth 0  /caldav/                          → server root
+//	depth 1  /caldav/user/                     → user principal
+//	depth 2  /caldav/user/calendars/           → calendar home set  ← ListCalendars
+//	depth 3  /caldav/user/calendars/<id>/      → calendar           ← ListCalendarObjects
+//	depth 4  /caldav/user/calendars/<id>/e.ics → calendar object
 func (a *storeAdapter) calHomePath() string {
 	return a.rootPath + "/caldav/user/calendars/"
 }
@@ -390,7 +391,7 @@ func (a *storeAdapter) icalToEvent(calID, fallbackEventID string, cal *ical.Cale
 	e.Description, _ = iev.Props.Text(ical.PropDescription)
 	e.Location, _ = iev.Props.Text(ical.PropLocation)
 	e.Opacity = calstore.OpacityOpaque
-if transp, _ := iev.Props.Text(ical.PropTransparency); transp != "" {
+	if transp, _ := iev.Props.Text(ical.PropTransparency); transp != "" {
 		e.Opacity = calstore.EventOpacity(transp)
 	} else if opacity, _ := iev.Props.Text("OPACITY"); opacity != "" {
 		e.Opacity = calstore.EventOpacity(opacity)

@@ -629,7 +629,7 @@ func schedulingOutboxResponse(ctx context.Context, store calstore.CalendarStore,
 }
 
 type outboxBusyRequest struct {
-	UID      string
+	UID       string
 	Organizer string
 	Attendees []string
 	Start     time.Time
