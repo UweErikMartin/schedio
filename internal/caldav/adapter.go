@@ -29,6 +29,22 @@ type storeAdapter struct {
 	rootPath string // "" or "/ui" etc., matches the application root-path flag
 }
 
+// mapStoreErr converts a CalendarStore error into the appropriate HTTP error for
+// the CalDAV client.  It centralises the ErrNotFound → 404, ErrConflict → 412,
+// and ErrReadOnly → 403 mappings that every backend method needs.
+func mapStoreErr(err error) error {
+	switch {
+	case errors.Is(err, calstore.ErrNotFound):
+		return webdav.NewHTTPError(http.StatusNotFound, err)
+	case errors.Is(err, calstore.ErrConflict):
+		return webdav.NewHTTPError(http.StatusPreconditionFailed, err)
+	case errors.Is(err, calstore.ErrReadOnly):
+		return webdav.NewHTTPError(http.StatusForbidden, err)
+	default:
+		return err
+	}
+}
+
 // calHomePath returns the URL prefix shared by all calendar collections,
 // e.g. "" → "/caldav/user/calendars/", "/ui" → "/ui/caldav/user/calendars/".
 //
@@ -122,10 +138,7 @@ func (a *storeAdapter) GetCalendar(ctx context.Context, path string) (*extcaldav
 	calID := a.calIDFromPath(path)
 	cal, err := a.store.GetCalendar(ctx, calID)
 	if err != nil {
-		if err == calstore.ErrNotFound {
-			return nil, webdav.NewHTTPError(http.StatusNotFound, err)
-		}
-		return nil, err
+		return nil, mapStoreErr(err)
 	}
 	return &extcaldav.Calendar{
 		Path:                  a.pathForCalendar(cal.ID),
@@ -143,10 +156,7 @@ func (a *storeAdapter) GetCalendarObject(ctx context.Context, path string, _ *ex
 	}
 	e, err := a.store.GetEvent(ctx, calID, eventID)
 	if err != nil {
-		if err == calstore.ErrNotFound {
-			return nil, webdav.NewHTTPError(http.StatusNotFound, err)
-		}
-		return nil, err
+		return nil, mapStoreErr(err)
 	}
 	obj := a.eventToObject(e)
 	return &obj, nil
@@ -160,10 +170,7 @@ func (a *storeAdapter) ListCalendarObjects(ctx context.Context, path string, _ *
 	}
 	events, err := a.store.ListEvents(ctx, calID, time.Time{}, time.Time{})
 	if err != nil {
-		if err == calstore.ErrNotFound {
-			return nil, webdav.NewHTTPError(http.StatusNotFound, err)
-		}
-		return nil, err
+		return nil, mapStoreErr(err)
 	}
 	klog.V(2).Infof("caldav: ListCalendarObjects calID=%q path=%q → %d event(s)", calID, path, len(events))
 	objects := make([]extcaldav.CalendarObject, 0, len(events))
@@ -194,10 +201,7 @@ func (a *storeAdapter) QueryCalendarObjects(ctx context.Context, path string, qu
 	klog.V(2).Infof("caldav: QueryCalendarObjects calID=%q start=%v end=%v", calID, start, end)
 	events, err := a.store.ListEvents(ctx, calID, start, end)
 	if err != nil {
-		if err == calstore.ErrNotFound {
-			return nil, webdav.NewHTTPError(http.StatusNotFound, err)
-		}
-		return nil, err
+		return nil, mapStoreErr(err)
 	}
 	klog.V(2).Infof("caldav: QueryCalendarObjects store returned %d event(s)", len(events))
 	objects := make([]extcaldav.CalendarObject, 0, len(events))
@@ -238,16 +242,7 @@ func (a *storeAdapter) PutCalendarObject(ctx context.Context, path string, cal *
 		}
 	}
 	if err := a.store.PutEvent(ctx, e); err != nil {
-		switch {
-		case errors.Is(err, calstore.ErrConflict):
-			return nil, webdav.NewHTTPError(http.StatusPreconditionFailed, err)
-		case errors.Is(err, calstore.ErrNotFound):
-			return nil, webdav.NewHTTPError(http.StatusNotFound, err)
-		case errors.Is(err, calstore.ErrReadOnly):
-			return nil, webdav.NewHTTPError(http.StatusForbidden, err)
-		default:
-			return nil, err
-		}
+		return nil, mapStoreErr(err)
 	}
 	// Re-fetch to return the server-assigned ETag.
 	updated, err := a.store.GetEvent(ctx, calID, e.ID)
@@ -266,13 +261,7 @@ func (a *storeAdapter) DeleteCalendarObject(ctx context.Context, path string) er
 	}
 	// Pass empty etag: the library already validated If-Match via GetCalendarObject.
 	if err := a.store.DeleteEvent(ctx, calID, eventID, ""); err != nil {
-		if errors.Is(err, calstore.ErrNotFound) {
-			return webdav.NewHTTPError(http.StatusNotFound, err)
-		}
-		if errors.Is(err, calstore.ErrReadOnly) {
-			return webdav.NewHTTPError(http.StatusForbidden, err)
-		}
-		return err
+		return mapStoreErr(err)
 	}
 	return nil
 }
