@@ -33,7 +33,7 @@ func (w *davEnforcingWriter) WriteHeader(code int) {
 		return
 	}
 	w.wroteHeader = true
-	w.ResponseWriter.Header().Set("Dav", davCapabilities)
+	w.ResponseWriter.Header().Set("DAV", davCapabilities)
 	w.ResponseWriter.WriteHeader(code)
 }
 
@@ -58,17 +58,18 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 		Backend: &storeAdapter{store: store, rootPath: rootPath},
 		Prefix:  rootPath + "/caldav",
 	}
+	// Precompute paths: these are constant for the lifetime of the handler.
+	principalPath := rootPath + "/caldav/user/"
+	calHomePath := rootPath + "/caldav/user/calendars/"
+	inboxPath := rootPath + "/caldav/user/inbox/"
+	outboxPath := rootPath + "/caldav/user/outbox/"
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Wrap to ensure our DAV capabilities always appear in the response,
 		// even when the inner go-webdav handler sets its own Dav: header.
 		dw := &davEnforcingWriter{ResponseWriter: w}
 		w = dw
 		w.Header().Set("DAV", davCapabilities)
-
-		principalPath := rootPath + "/caldav/user/"
-		calHomePath := rootPath + "/caldav/user/calendars/"
-		inboxPath := rootPath + "/caldav/user/inbox/"
-		outboxPath := rootPath + "/caldav/user/outbox/"
 
 		// Minimal scheduling discovery support (RFC 6638) so iOS treats the
 		// principal as scheduling-capable and enables free/busy related UI.
@@ -146,7 +147,7 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 			return
 		}
 		if r.URL.Path == outboxPath && r.Method == "PROPFIND" {
-			writeXML(w, http.StatusMultiStatus, schedulingCollectionMultistatus(outboxPath, "schedule-outbox"))
+			writeXML(w, http.StatusMultiStatus, schedulingCollectionMultistatusWithCalHrefs(outboxPath, "schedule-outbox", nil))
 			return
 		}
 		if r.URL.Path == outboxPath && r.Method == http.MethodPost {
@@ -237,10 +238,6 @@ func principalMultistatus(rootPath string) string {
 	</d:response>
 </d:multistatus>
 `, nsCalDAV, xmlEscape(principal), xmlEscape(principal), xmlEscape(calHome), xmlEscape(inbox), xmlEscape(outbox))
-}
-
-func schedulingCollectionMultistatus(path, kind string) string {
-	return schedulingCollectionMultistatusWithCalHrefs(path, kind, nil)
 }
 
 func schedulingCollectionMultistatusWithCalHrefs(path, kind string, calHrefs []string) string {
