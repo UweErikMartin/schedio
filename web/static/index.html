@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Schedio</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+
+<body>
+  <main class="container">
+    <h1>Schedio</h1>
+    <p>Embedded static frontend served by the Go binary.</p>
+
+    <ul>
+      <li><a href="/swagger/">Swagger UI</a></li>
+      <li><a href="/openapi.yaml">OpenAPI Spec</a></li>
+      <li><a href="/caldav">CalDAV Endpoint</a></li>
+      <li><a href="/healthz">Health Check</a></li>
+    </ul>
+
+    <button id="ping" type="button">Ping Health</button>
+    <pre id="result">ready</pre>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+
+</html>

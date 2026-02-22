@@ -1,0 +1,59 @@
+openapi: 3.0.3
+info:
+  title: Schedio API
+  version: 0.1.0
+servers:
+  - url: /
+paths:
+  /healthz:
+    get:
+      summary: Health check endpoint
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ok
+  /openapi.yaml:
+    get:
+      summary: OpenAPI specification
+      responses:
+        '200':
+          description: OpenAPI document
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /caldav:
+    options:
+      summary: CalDAV capability discovery
+      responses:
+        '204':
+          description: No content
+    get:
+      summary: Basic CalDAV availability response
+      responses:
+        '200':
+          description: Endpoint available
+          content:
+            text/plain:
+              schema:
+                type: string
+    put:
+      summary: Placeholder for calendar resource create/update
+      responses:
+        '201':
+          description: Created
+    delete:
+      summary: Placeholder for calendar resource deletion
+      responses:
+        '204':
+          description: Deleted
+  /swagger:
+    get:
+      summary: Swagger UI entrypoint
+      responses:
+        '200':
+          description: HTML UI
