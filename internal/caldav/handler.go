@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,7 +27,7 @@ type davEnforcingWriter struct {
 	wroteHeader bool
 }
 
-const davCapabilities = "1, 2, calendar-access, calendar-schedule"
+const davCapabilities = "1, 2, calendar-access, calendar-auto-schedule"
 
 func (w *davEnforcingWriter) WriteHeader(code int) {
 	if w.wroteHeader {
@@ -73,7 +74,11 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 		// Minimal scheduling discovery support (RFC 6638) so iOS treats the
 		// principal as scheduling-capable and enables free/busy related UI.
 		if r.URL.Path == principalPath && r.Method == "PROPFIND" {
-			writeXML(w, http.StatusMultiStatus, principalMultistatus(rootPath))
+			defaultCalHref := ""
+			if cals, err := store.ListCalendars(r.Context()); err == nil && len(cals) > 0 {
+				defaultCalHref = rootPath + "/caldav/user/calendars/" + cals[0].ID + "/"
+			}
+			writeXML(w, http.StatusMultiStatus, principalMultistatus(rootPath, defaultCalHref))
 			return
 		}
 		if r.URL.Path == calHomePath && r.Method == "PROPFIND" {
@@ -99,6 +104,35 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 					writeXML(w, http.StatusMultiStatus, ms)
 					return
 				}
+				// Depth:1 (or infinity) — return the collection entry plus one
+				// <d:response> per event. Each event entry carries
+				// current-user-privilege-set with write privileges so clients
+				// (e.g. iOS Calendar) enable write-level UI ("Show As Free/Busy").
+				ms, err := calendarCollectionDepth1Multistatus(r.Context(), store, rootPath, calID)
+				if err != nil {
+					http.Error(w, "failed to build calendar collection depth-1 response", http.StatusInternalServerError)
+					return
+				}
+				writeXML(w, http.StatusMultiStatus, ms)
+				return
+			}
+			// Intercept PROPFIND on individual calendar object resources (.ics
+			// files) to inject current-user-privilege-set with write privileges.
+			// SabreDAV's DAVACL plugin does the same: it computes the set from
+			// CalendarObject::getACL() (which grants {DAV:}write to the owner)
+			// for every node, including individual event resources.
+			if calID, eventID, ok := calendarObjectFromPath(r.URL.Path, rootPath); ok {
+				e, err := store.GetEvent(r.Context(), calID, eventID)
+				if errors.Is(err, calstore.ErrNotFound) {
+					http.NotFound(w, r)
+					return
+				}
+				if err != nil {
+					http.Error(w, "internal server error", http.StatusInternalServerError)
+					return
+				}
+				writeXML(w, http.StatusMultiStatus, calendarObjectMultistatus(rootPath, calID, e))
+				return
 			}
 		}
 		if r.Method == "REPORT" {
@@ -160,6 +194,11 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 				http.Error(w, postErr.Error(), http.StatusBadRequest)
 				return
 			}
+			// RFC 7240 / XML spec §2.11: XML parsers normalise \r\n → \n in text
+			// content, so any \r characters would be stripped before the embedded
+			// iCalendar data reaches the client's iCal parser.  Convert
+			// explicitly, as SabreDAV does (str_replace("\r\n", "\n", ...)),
+			// to guarantee the iCal data is intact after XML round-tripping.
 			writeXML(w, http.StatusOK, xmlResp)
 			return
 		}
@@ -197,11 +236,16 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 	})
 }
 
-func principalMultistatus(rootPath string) string {
+func principalMultistatus(rootPath, defaultCalHref string) string {
 	principal := rootPath + "/caldav/user/"
 	calHome := rootPath + "/caldav/user/calendars/"
 	inbox := rootPath + "/caldav/user/inbox/"
 	outbox := rootPath + "/caldav/user/outbox/"
+
+	defaultCalXML := ""
+	if defaultCalHref != "" {
+		defaultCalXML = "\n\t\t\t\t<c:schedule-default-calendar-URL><d:href>" + xmlEscape(defaultCalHref) + "</d:href></c:schedule-default-calendar-URL>"
+	}
 
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
 <d:multistatus xmlns:d="DAV:" xmlns:c="%s">
@@ -224,6 +268,7 @@ func principalMultistatus(rootPath string) string {
 				<c:calendar-user-address-set>
 					<d:href>mailto:user@example.com</d:href>
 				</c:calendar-user-address-set>
+				<c:calendar-user-type>INDIVIDUAL</c:calendar-user-type>%s
 				<c:schedule-inbox-URL>
 					<d:href>%s</d:href>
 				</c:schedule-inbox-URL>
@@ -231,12 +276,22 @@ func principalMultistatus(rootPath string) string {
 					<d:href>%s</d:href>
 				</c:schedule-outbox-URL>
 				<d:resourcetype><d:collection/><d:principal/></d:resourcetype>
+				<d:displayname>User</d:displayname>
+				<d:current-user-privilege-set>
+					<d:privilege><d:read/></d:privilege>
+					<d:privilege><d:write/></d:privilege>
+					<d:privilege><d:write-properties/></d:privilege>
+					<d:privilege><d:write-content/></d:privilege>
+					<d:privilege><d:read-acl/></d:privilege>
+					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+					<d:privilege><c:read-free-busy/></d:privilege>
+				</d:current-user-privilege-set>
 			</d:prop>
 			<d:status>HTTP/1.1 200 OK</d:status>
 		</d:propstat>
 	</d:response>
 </d:multistatus>
-`, nsCalDAV, xmlEscape(principal), xmlEscape(principal), xmlEscape(calHome), xmlEscape(inbox), xmlEscape(outbox))
+`, nsCalDAV, xmlEscape(principal), xmlEscape(principal), xmlEscape(calHome), defaultCalXML, xmlEscape(inbox), xmlEscape(outbox))
 }
 
 func schedulingCollectionMultistatus(path, kind string) string {
@@ -429,17 +484,12 @@ func calendarIDFromCollectionPath(path, rootPath string) (string, bool) {
 	return rel, true
 }
 
-func calendarCollectionMultistatus(ctx context.Context, store calstore.CalendarStore, rootPath, calID string) (string, error) {
-	cal, err := store.GetCalendar(ctx, calID)
-	if err != nil {
-		return "", err
-	}
-	href := rootPath + "/caldav/user/calendars/" + cal.ID + "/"
-
-	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
-<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
-	<d:response>
-		<d:href>%s</d:href>
+// calendarCollectionResponseXML returns the <d:response> element for a
+// calendar collection, without the multistatus wrapper. It is shared between
+// the Depth:0 and Depth:1 PROPFIND handlers.
+func calendarCollectionResponseXML(cal *calstore.Calendar, href string) string {
+	return `	<d:response>
+		<d:href>` + xmlEscape(href) + `</d:href>
 		<d:propstat>
 			<d:prop>
 				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
@@ -453,8 +503,8 @@ func calendarCollectionMultistatus(ctx context.Context, store calstore.CalendarS
 					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
 					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
 				</d:supported-report-set>
-				<d:displayname>%s</d:displayname>
-				<cal:calendar-description>%s</cal:calendar-description>
+				<d:displayname>` + xmlEscape(cal.Name) + `</d:displayname>
+				<cal:calendar-description>` + xmlEscape(cal.Description) + `</cal:calendar-description>
 				<cal:supported-calendar-component-set>
 					<cal:comp name="VEVENT"/>
 				</cal:supported-calendar-component-set>
@@ -472,9 +522,118 @@ func calendarCollectionMultistatus(ctx context.Context, store calstore.CalendarS
 			</d:prop>
 			<d:status>HTTP/1.1 200 OK</d:status>
 		</d:propstat>
-	</d:response>
+	</d:response>`
+}
+
+// calendarCollectionMultistatus builds a Depth:0 WebDAV multistatus response
+// for the given calendar collection.
+func calendarCollectionMultistatus(ctx context.Context, store calstore.CalendarStore, rootPath, calID string) (string, error) {
+	cal, err := store.GetCalendar(ctx, calID)
+	if err != nil {
+		return "", err
+	}
+	href := rootPath + "/caldav/user/calendars/" + cal.ID + "/"
+	return `<?xml version="1.0" encoding="UTF-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+` + calendarCollectionResponseXML(cal, href) + `
 </d:multistatus>
-`, xmlEscape(href), xmlEscape(cal.Name), xmlEscape(cal.Description)), nil
+`, nil
+}
+
+// calendarCollectionDepth1Multistatus builds a Depth:1 WebDAV multistatus
+// response for a calendar collection PROPFIND. It returns the collection's own
+// properties (identical to Depth:0) plus one <d:response> per calendar object
+// resource. Each event entry includes <d:getetag> and
+// <d:current-user-privilege-set> with write privileges so clients (e.g. iOS
+// Calendar) can determine write access and enable write-level editing UI such
+// as the per-event "Show As Free/Busy" toggle.
+//
+// Event bodies are intentionally omitted; clients that need iCal data should
+// follow up with a calendar-multiget REPORT (which go-webdav handles).
+func calendarCollectionDepth1Multistatus(ctx context.Context, store calstore.CalendarStore, rootPath, calID string) (string, error) {
+	cal, err := store.GetCalendar(ctx, calID)
+	if err != nil {
+		return "", err
+	}
+	href := rootPath + "/caldav/user/calendars/" + cal.ID + "/"
+	events, err := store.ListEvents(ctx, calID, time.Time{}, time.Time{})
+	if err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+`)
+	b.WriteString(calendarCollectionResponseXML(cal, href))
+	for _, e := range events {
+		b.WriteByte('\n')
+		b.WriteString(calendarObjectResponseXML(rootPath, calID, e))
+	}
+	b.WriteString("\n</d:multistatus>\n")
+	return b.String(), nil
+}
+
+// calendarObjectFromPath extracts (calID, eventID) from a path that identifies
+// an individual calendar object resource, e.g.:
+//
+//	/caldav/user/calendars/myCalendar/event.ics → ("myCalendar", "event", true)
+//
+// Returns ("", "", false) for paths that are calendar collections or unrelated.
+func calendarObjectFromPath(path, rootPath string) (calID, eventID string, ok bool) {
+	prefix := rootPath + "/caldav/user/calendars/"
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, ".ics") {
+		return "", "", false
+	}
+	rel := strings.TrimPrefix(path, prefix)
+	parts := strings.SplitN(rel, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], strings.TrimSuffix(parts[1], ".ics"), true
+}
+
+// calendarObjectResponseXML returns the <d:response> element for a single
+// calendar object resource. It reports getetag, getcontenttype, and
+// current-user-privilege-set with full write privileges (matching SabreDAV's
+// CalendarObject::getACL() → DAVACL plugin behaviour). Event body (calendar-
+// data) is intentionally omitted; callers that need it should use a
+// calendar-multiget REPORT.
+func calendarObjectResponseXML(rootPath, calID string, e *calstore.Event) string {
+	href := rootPath + "/caldav/user/calendars/" + calID + "/" + e.ID + ".ics"
+	etag := e.ETag
+	if etag == "" {
+		etag = e.ID
+	}
+	return `	<d:response>
+		<d:href>` + xmlEscape(href) + `</d:href>
+		<d:propstat>
+			<d:prop>
+				<d:getetag>` + xmlEscape(`"` + etag + `"`) + `</d:getetag>
+				<d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>
+				<d:current-user-privilege-set>
+					<d:privilege><d:read/></d:privilege>
+					<d:privilege><d:write/></d:privilege>
+					<d:privilege><d:write-properties/></d:privilege>
+					<d:privilege><d:write-content/></d:privilege>
+					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+				</d:current-user-privilege-set>
+			</d:prop>
+			<d:status>HTTP/1.1 200 OK</d:status>
+		</d:propstat>
+	</d:response>`
+}
+
+// calendarObjectMultistatus builds a WebDAV multistatus response for a
+// PROPFIND on a single calendar object resource. It returns getetag,
+// getcontenttype, and current-user-privilege-set with write privileges so
+// clients (e.g. iOS Calendar) can determine that the user may modify the event
+// (change TRANSP, update fields, delete, etc.).
+func calendarObjectMultistatus(rootPath, calID string, e *calstore.Event) string {
+	return `<?xml version="1.0" encoding="UTF-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+` + calendarObjectResponseXML(rootPath, calID, e) + `
+</d:multistatus>
+`
 }
 
 func isFreeBusyQuery(body []byte) bool {
@@ -549,11 +708,13 @@ func buildFreeBusyCalendar(calID string, start, end time.Time, events []*calstor
 	b.WriteString("DTSTAMP:" + time.Now().UTC().Format("20060102T150405Z") + "\r\n")
 	b.WriteString("DTSTART:" + start.UTC().Format("20060102T150405Z") + "\r\n")
 	b.WriteString("DTEND:" + end.UTC().Format("20060102T150405Z") + "\r\n")
-	if len(periods) > 0 {
-		b.WriteString("FREEBUSY:" + strings.Join(periods, ",") + "\r\n")
+	// RFC 5545 §3.1: content lines must not exceed 75 octets. Emit one
+	// FREEBUSY property per period so each line stays well under that limit.
+	for _, p := range periods {
+		b.WriteString("FREEBUSY:" + p + "\r\n")
 	}
-	if len(tentativePeriods) > 0 {
-		b.WriteString("FREEBUSY;FBTYPE=BUSY-TENTATIVE:" + strings.Join(tentativePeriods, ",") + "\r\n")
+	for _, p := range tentativePeriods {
+		b.WriteString("FREEBUSY;FBTYPE=BUSY-TENTATIVE:" + p + "\r\n")
 	}
 	b.WriteString("END:VFREEBUSY\r\n")
 	b.WriteString("END:VCALENDAR\r\n")
@@ -615,10 +776,16 @@ func schedulingOutboxResponse(ctx context.Context, store calstore.CalendarStore,
 	var responses strings.Builder
 	for _, attendee := range req.Attendees {
 		calendarData := buildSchedulingFreeBusyReply(req.UID, req.Start, req.End, req.Organizer, attendee, busy, tentative)
+		// Convert CRLF → LF before XML-escaping: XML parsers normalise \r\n to
+		// \n in text content (XML §2.11), so keeping \r\n would cause the client to
+		// receive LF-only data after parsing — a potential mismatch for strict iCal
+		// parsers that require CRLF (RFC 5545 §3.1). Pre-converting, as SabreDAV
+		// does, makes the intended line endings explicit.
+		calendarDataXML := strings.ReplaceAll(calendarData, "\r\n", "\n")
 		responses.WriteString(`<cal:response>
 		<cal:recipient><d:href>` + xmlEscape(attendee) + `</d:href></cal:recipient>
 		<cal:request-status>2.0;Success</cal:request-status>
-		<cal:calendar-data>` + xmlEscape(calendarData) + `</cal:calendar-data>
+		<cal:calendar-data>` + xmlEscape(calendarDataXML) + `</cal:calendar-data>
 	</cal:response>`)
 	}
 
@@ -716,11 +883,13 @@ func buildSchedulingFreeBusyReply(uid string, start, end time.Time, organizer, a
 	b.WriteString("DTEND:" + end.UTC().Format("20060102T150405Z") + "\r\n")
 	b.WriteString("ORGANIZER:" + organizer + "\r\n")
 	b.WriteString("ATTENDEE:" + attendee + "\r\n")
-	if len(busy) > 0 {
-		b.WriteString("FREEBUSY;FBTYPE=BUSY:" + strings.Join(busy, ",") + "\r\n")
+	// RFC 5545 §3.1: content lines must not exceed 75 octets. Emit one
+	// FREEBUSY property per period so each line stays well under that limit.
+	for _, p := range busy {
+		b.WriteString("FREEBUSY;FBTYPE=BUSY:" + p + "\r\n")
 	}
-	if len(tentative) > 0 {
-		b.WriteString("FREEBUSY;FBTYPE=BUSY-TENTATIVE:" + strings.Join(tentative, ",") + "\r\n")
+	for _, p := range tentative {
+		b.WriteString("FREEBUSY;FBTYPE=BUSY-TENTATIVE:" + p + "\r\n")
 	}
 	b.WriteString("END:VFREEBUSY\r\n")
 	b.WriteString("END:VCALENDAR\r\n")

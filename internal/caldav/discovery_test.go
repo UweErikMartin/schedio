@@ -253,6 +253,111 @@ func TestIPadDiscovery_CalendarCollectionPropfindExposesFreeBusySetting(t *testi
 	}
 }
 
+// TestOptionsAdvertisesAutoSchedule verifies that every OPTIONS response carries
+// the "calendar-auto-schedule" capability token (RFC 6638). iOS Calendar checks
+// this token to decide whether to enable per-event transparency ("Show As")
+// editing. A regression to "calendar-schedule" would hide the field entirely.
+func TestOptionsAdvertisesAutoSchedule(t *testing.T) {
+	paths := []string{
+		"/caldav/user/",
+		"/caldav/user/calendars/",
+		"/caldav/user/calendars/dummy/",
+		"/caldav/user/inbox/",
+		"/caldav/user/outbox/",
+	}
+	router := newDiscoveryTestMux("")
+
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodOptions, "http://example.com"+path, nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			dav := rec.Header().Get("Dav")
+			if dav == "" {
+				dav = rec.Header().Get("DAV")
+			}
+			if !strings.Contains(dav, "calendar-auto-schedule") {
+				t.Errorf("DAV header = %q, missing calendar-auto-schedule", dav)
+			}
+			if strings.Contains(dav, "calendar-schedule") && !strings.Contains(dav, "calendar-auto-schedule") {
+				t.Errorf("DAV header = %q: has calendar-schedule but not calendar-auto-schedule", dav)
+			}
+		})
+	}
+}
+
+// TestPrincipalExposesScheduleDefaultCalendarURL verifies that the principal
+// PROPFIND response includes a <schedule-default-calendar-URL> pointing to the
+// first calendar in the store. This property is required by RFC 6638 §2.4.2
+// when a server advertises scheduling support. Its absence can cause iOS to
+// suppress the per-event "Show As Free/Busy" UI even when auto-schedule is
+// declared in the DAV header.
+func TestPrincipalExposesScheduleDefaultCalendarURL(t *testing.T) {
+	router := newDiscoveryTestMux("")
+
+	req := httptest.NewRequest("PROPFIND", "http://example.com/caldav/user/", nil)
+	req.Header.Set("Depth", "0")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMultiStatus {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusMultiStatus)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "schedule-default-calendar-URL") {
+		t.Fatalf("response missing schedule-default-calendar-URL:\n%s", body)
+	}
+	if !strings.Contains(body, "/caldav/user/calendars/dummy/") {
+		t.Fatalf("schedule-default-calendar-URL missing href /caldav/user/calendars/dummy/:\n%s", body)
+	}
+}
+
+// TestPrincipalExposesCalendarUserType verifies that the principal PROPFIND
+// response includes <calendar-user-type>INDIVIDUAL</calendar-user-type>. This
+// property signals to iOS Calendar that the principal is a human user (as
+// opposed to a room or resource), enabling the full event-editing UI.
+func TestPrincipalExposesCalendarUserType(t *testing.T) {
+	router := newDiscoveryTestMux("")
+
+	req := httptest.NewRequest("PROPFIND", "http://example.com/caldav/user/", nil)
+	req.Header.Set("Depth", "0")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMultiStatus {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusMultiStatus)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "calendar-user-type") {
+		t.Fatalf("response missing calendar-user-type:\n%s", body)
+	}
+	if !strings.Contains(body, "INDIVIDUAL") {
+		t.Fatalf("calendar-user-type missing value INDIVIDUAL:\n%s", body)
+	}
+}
+
+// TestPrincipalScheduleDefaultCalendarURLEmptyStore verifies that when no
+// calendars exist the principal response is still valid – the
+// schedule-default-calendar-URL element is simply omitted rather than emitting
+// an empty href, which could confuse clients.
+func TestPrincipalScheduleDefaultCalendarURLEmptyStore(t *testing.T) {
+	handler := NewHandler(calstore.NewMemoryStore(), "")
+	req := httptest.NewRequest("PROPFIND", "http://example.com/caldav/user/", nil)
+	req.Header.Set("Depth", "0")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMultiStatus {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusMultiStatus)
+	}
+	body := rec.Body.String()
+	// Either the element is absent or it must not contain an empty href.
+	if strings.Contains(body, "<d:href></d:href>") {
+		t.Fatalf("response contains empty href (bad XML): %s", body)
+	}
+}
+
 func TestIPadDiscovery_CalendarHomeDepthZeroDoesNotListChildren(t *testing.T) {
 	router := newDiscoveryTestMux("")
 

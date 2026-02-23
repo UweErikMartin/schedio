@@ -61,7 +61,7 @@ func (d *DiscoveryHandler) WellKnownHandler(w http.ResponseWriter, r *http.Reque
 // PrincipalsHandler handles requests on /principals/ and returns the
 // calendar-home-set so the client knows where to find calendars.
 func (d *DiscoveryHandler) PrincipalsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("DAV", "1, 2, calendar-access, calendar-schedule")
+	w.Header().Set("DAV", davCapabilities)
 	switch r.Method {
 	case http.MethodOptions:
 		w.Header().Set("Allow", "OPTIONS, PROPFIND")
