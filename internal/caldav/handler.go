@@ -608,7 +608,7 @@ func calendarObjectResponseXML(rootPath, calID string, e *calstore.Event) string
 		<d:href>` + xmlEscape(href) + `</d:href>
 		<d:propstat>
 			<d:prop>
-				<d:getetag>` + xmlEscape(`"` + etag + `"`) + `</d:getetag>
+				<d:getetag>` + xmlEscape(`"`+etag+`"`) + `</d:getetag>
 				<d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>
 				<d:current-user-privilege-set>
 					<d:privilege><d:read/></d:privilege>
