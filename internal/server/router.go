@@ -6,15 +6,16 @@ import (
 	"schedio/internal/caldav"
 	"schedio/internal/config"
 	"schedio/internal/handlers"
+	calstore "schedio/internal/store"
 )
 
 // NewRouter builds the HTTP mux.
-// caldavHandler is the CalDAV facade handler created by the caller so that the
-// backing CalendarStore can be swapped out without changing the router itself.
-func NewRouter(args *config.Config, caldavHandler http.Handler) http.Handler {
+// store is the CalendarStore implementation to back the CalDAV endpoint.
+func NewRouter(args *config.Config, store calstore.CalendarStore) http.Handler {
 	mux := http.NewServeMux()
 
 	discovery := caldav.NewDiscoveryHandler(args.RootPath)
+	caldavHandler := caldav.NewHandler(store, args.RootPath)
 
 	// RFC 6764 §5 – well-known redirect: clients probe this first.
 	mux.HandleFunc("/.well-known/caldav", discovery.WellKnownHandler)

@@ -17,6 +17,7 @@ Minimum Go version: see `go.mod`
 ```
 cmd/schedio/          # application entry-point (main.go)
 internal/
+  doc/                # requirements, design docs, protocol notes, etc.
   caldav/             # CalDAV protocol implementation (go-webdav adapter)
   config/             # CLI argument parsing and runtime config
   handlers/           # net/http handlers (OpenAPI, Swagger, CalDAV, health, web)
@@ -245,3 +246,113 @@ curl --anyauth -u "user:password" -X PROPFIND \
   -H "Depth: 0" -H "Content-Type: text/xml" \
   --data '<?xml version="1.0"?><A:propfind xmlns:A="DAV:"><A:allprop/></A:propfind>'
 ```
+
+---
+
+## Frontend / Web UI
+
+### Design documents
+
+- `doc/userinterface.md` — primary UI specification (1 288 lines, 12 sections,
+  29 components). Created and cross-checked against `doc/requirements.md` for
+  consistency. **Read this document before touching any file in `web/`.**
+- `doc/requirements.md` — functional requirements (M1–M25 resolved).
+- `doc/architecture.md` — system architecture (17 sections, gap analysis in
+  §17.19 gives a 16-step sequencing for backend implementation).
+
+### Web component conventions
+
+- **Pure JavaScript, no framework** — Custom Elements v1 (`HTMLElement`
+  subclass, `customElements.define`). No npm dependencies in component source
+  files.
+- **Shadow DOM** `mode: 'open'` on every component.
+- **Styling** — CSS custom properties only; design tokens live in
+  `web/css/tokens.css` and are imported via `@import` inside every shadow root.
+- **Module system** — ES modules (`type="module"`). Bundling is a build step,
+  not a source-code concern.
+- **HTTP** — `fetch` + `async`/`await`; no global state for in-flight requests.
+- **Routing** — `history.pushState` / `popstate` managed by top-level
+  `<x-booking-app>` and `<x-admin-app>`.
+- **Accessibility** — WCAG 2.1 Level AA mandatory (see §10 of userinterface.md).
+- **Language** — German UI labels throughout.
+
+### Component inventory (29 components)
+
+**Customer booking SPA (`web/js/booking/`):**
+
+| Component | File | Responsibility |
+| --- | --- | --- |
+| `<x-booking-app>` | `booking-app.js` | Top-level orchestrator, step state machine |
+| `<x-stepper>` | `stepper.js` | Horizontal progress indicator |
+| `<x-service-picker>` | `x-service-picker.js` (existing) | Service list + detail, fetches `/api/v1/services` |
+| `<x-date-time-picker>` | `x-date-time-picker.js` (existing) | Calendar + time-slot picker |
+| `<x-booking-line>` | `booking-line.js` | Single booking line (one picker + remove button) |
+| `<x-booking-list>` | `booking-list.js` | Ordered list of booking lines + "add" button |
+| `<x-contact-form>` | `contact-form.js` | Name / email / phone with validation |
+| `<x-session-summary>` | `session-summary.js` | Read-only session summary (steps 4 and 5) |
+| `<x-tandc-accept>` | `tandc-accept.js` | T&C PDF link + mandatory acceptance checkbox |
+| `<x-booking-success>` | `booking-success.js` | Post-submission step 5 view |
+
+**Customer booking management view (`web/js/manage/`):**
+
+| Component | File | Responsibility |
+| --- | --- | --- |
+| `<x-booking-manager>` | `booking-manager.js` | Orchestrator for token-protected management page |
+| `<x-booking-card>` | `booking-card.js` | Single booking row with reschedule / cancel actions |
+| `<x-reschedule-picker>` | `reschedule-picker.js` | Inline date-time picker for rescheduling |
+| `<x-cancel-confirm>` | `cancel-confirm.js` | Cancellation confirmation dialog |
+
+**Shared utilities (`web/js/shared/`):**
+
+| Component | File | Responsibility |
+| --- | --- | --- |
+| `<x-spinner>` | `spinner.js` | Loading indicator |
+| `<x-toast>` | `toast.js` | Transient notification |
+| `<x-dialog>` | `dialog.js` | Modal dialog wrapper |
+| `<x-error-banner>` | `error-banner.js` | Persistent error display |
+
+**Admin SPA (`web/js/admin/`):**
+
+| Component | File | Responsibility |
+| --- | --- | --- |
+| `<x-admin-app>` | `admin-app.js` | Top-level admin orchestrator + routing |
+| `<x-admin-nav>` | `admin-nav.js` | Side-navigation |
+| `<x-login-form>` | `login-form.js` | Admin login form |
+| `<x-admin-dashboard>` | `admin-dashboard.js` | Dashboard shell |
+| `<x-dashboard-today>` | `dashboard-today.js` | Today's reserved + confirmed bookings |
+| `<x-dashboard-pending>` | `dashboard-pending.js` | Pending (unconfirmed) sessions |
+| `<x-service-list>` | `service-list.js` | Service catalogue list |
+| `<x-service-form>` | `service-form.js` | Create / edit service |
+| `<x-session-review>` | `session-review.js` | Confirm / reject a booking session |
+| `<x-settings-form>` | `settings-form.js` | Global settings editor |
+| `<x-tandc-upload>` | `tandc-upload.js` | T&C PDF upload |
+| `<x-secret-manager>` | `secret-manager.js` | HMAC signing-secret rotation |
+
+### Key design decisions (do not change without updating userinterface.md)
+
+- **Management link URL format** — `/?id=<bookingID>&token=<signedToken>`.
+  Two separate query parameters; `token` is an HMAC-SHA256 of the booking ID,
+  and `id` is provided separately for convenient frontend URL construction.
+  The requirements phrase "signed token" refers to the combined intent, not a
+  single URL parameter.
+- **Remove button on first booking line** — hidden only when it is the **sole**
+  remaining line, not unconditionally hidden.
+- **First booking line pre-selection** — on step 2 initial render, the first
+  `<x-booking-line>` has its `value` preset to the earliest available slot.
+- **`<x-booking-success>` (step 5)** — receives all data via JS properties from
+  `<x-booking-app>`; makes no API calls.
+- **Admin dashboard today panel** — shows only bookings with state `reserved` or
+  `confirmed`; cancelled and no-show bookings are excluded.
+- **Pending sessions table** — columns include earliest requested booking date
+  and time, so the admin can prioritise review.
+
+### Suggested implementation order
+
+Start with components that have no dependencies on other custom elements:
+
+1. Shared utilities: `<x-spinner>`, `<x-toast>`, `<x-dialog>`, `<x-error-banner>`
+2. Leaf booking components: `<x-stepper>`, `<x-booking-line>`, `<x-contact-form>`,
+   `<x-tandc-accept>`, `<x-booking-success>`, `<x-session-summary>`
+3. Composite booking components: `<x-booking-list>`, then `<x-booking-app>`
+4. Management view components
+5. Admin SPA components (login → dashboard → service management → settings)

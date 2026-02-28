@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"schedio/internal/caldav"
 	"schedio/internal/config"
 	"schedio/internal/middleware"
 	"schedio/internal/server"
@@ -34,11 +33,9 @@ func main() {
 	} else {
 		caldavStore = calstore.NewMemoryStore()
 	}
-	caldavHandler := caldav.NewHandler(caldavStore, args.RootPath)
-
 	httpServer := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", args.BindAddress, args.Port),
-		Handler:           middleware.LoggingMiddleware(server.NewRouter(&args, caldavHandler)),
+		Handler:           middleware.LoggingMiddleware(server.NewRouter(&args, caldavStore)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,

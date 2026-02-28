@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"schedio/internal/config"
+	calstore "schedio/internal/store"
 	"strings"
 	"testing"
 )
@@ -23,7 +24,7 @@ func TestRouter_ServesOpenAPISpec(t *testing.T) {
 	args := config.Config{
 		RootPath: randomRootPath(),
 	}
-	router := NewRouter(&args, http.NotFoundHandler())
+	router := NewRouter(&args, calstore.NewMemoryStore())
 
 	port := randomPort()
 	rootPath := args.RootPath
@@ -59,7 +60,7 @@ func TestRouter_ServesSwaggerUIIndex(t *testing.T) {
 		RootPath: randomRootPath(),
 		Port:     randomPort(),
 	}
-	router := NewRouter(&args, http.NotFoundHandler())
+	router := NewRouter(&args, calstore.NewMemoryStore())
 
 	port := args.Port
 	rootPath := args.RootPath
@@ -95,7 +96,7 @@ func TestRouter_ServesWebUIWithRootPathPrefix(t *testing.T) {
 	args := config.Config{
 		RootPath: "/ui",
 	}
-	router := NewRouter(&args, http.NotFoundHandler())
+	router := NewRouter(&args, calstore.NewMemoryStore())
 
 	t.Run("index", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "http://example.com/ui/", nil)

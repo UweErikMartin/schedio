@@ -2,52 +2,1029 @@ openapi: 3.0.3
 info:
   title: Schedio API
   version: 0.1.0
+  description: |
+    REST API for the schedio appointment-booking service.
+
+    Two API roots are provided:
+    - `/api/v1/` — public customer endpoints (no authentication required)
+    - `/admin/api/v1/` — admin endpoints (session-cookie authentication)
+
+    The CalDAV endpoint at `/caldav/` is served by a separate handler and is
+    not described here. The OpenAPI document itself is available at `/openapi.yaml`.
 servers:
   - url: '{{.ServerRootURL}}'
+tags:
+  - name: infrastructure
+    description: Health and metadata endpoints
+  - name: services
+    description: Service catalogue (public)
+  - name: availability
+    description: Time-slot availability queries (public)
+  - name: sessions
+    description: Booking session lifecycle (public)
+  - name: bookings
+    description: Individual booking management via token-authenticated management links
+  - name: auth
+    description: Admin authentication
+  - name: admin-dashboard
+    description: Admin dashboard data
+  - name: admin-services
+    description: Admin service management
+  - name: admin-sessions
+    description: Admin session review
+  - name: admin-settings
+    description: Admin settings and file uploads
+
 paths:
+
+  # ── Infrastructure ───────────────────────────────────────────────────────
+
   /healthz:
     get:
-      summary: Health check endpoint
+      tags: [infrastructure]
+      summary: Liveness probe
       responses:
         '200':
-          description: Service healthy
+          description: Service is healthy
           content:
             text/plain:
               schema:
                 type: string
                 example: ok
+
   /openapi.yaml:
     get:
-      summary: OpenAPI specification
+      tags: [infrastructure]
+      summary: OpenAPI specification document
       responses:
         '200':
-          description: OpenAPI document
+          description: OpenAPI YAML document
           content:
             application/yaml:
               schema:
                 type: string
-  /caldav:
-    options:
-      summary: CalDAV capability discovery
-      responses:
-        '204':
-          description: No content
+
+  # ── Public customer API ──────────────────────────────────────────────────
+
+  /api/v1/services:
     get:
-      summary: Basic CalDAV availability response
+      tags: [services]
+      summary: List all bookable services
       responses:
         '200':
-          description: Endpoint available
+          description: Array of available services
           content:
-            text/plain:
+            application/json:
               schema:
-                type: string
-    put:
-      summary: Placeholder for calendar resource create/update
+                type: array
+                items:
+                  $ref: '#/components/schemas/Service'
+
+  /api/v1/availability:
+    get:
+      tags: [availability]
+      summary: List available time slots for a service on a given date
+      parameters:
+        - name: service_id
+          in: query
+          required: true
+          description: ID of the service to query availability for
+          schema:
+            type: string
+            format: uuid
+        - name: date
+          in: query
+          required: true
+          description: Calendar date in ISO-8601 format
+          schema:
+            type: string
+            format: date
+            example: '2026-03-15'
+      responses:
+        '200':
+          description: List of available time slots; may be empty
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimeSlot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/sessions:
+    post:
+      tags: [sessions]
+      summary: Create a new booking session
+      description: |
+        Called by `<x-booking-app>` after the customer selects a service.
+        Returns a session ID used for all subsequent booking-line operations.
+        The session remains open until `POST /api/v1/sessions/{id}/submit` is
+        called or abandoned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [service_id]
+              properties:
+                service_id:
+                  type: string
+                  format: uuid
       responses:
         '201':
-          description: Created
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/sessions/{id}/bookings:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [sessions]
+      summary: Add a booking line to an open session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start]
+              properties:
+                start:
+                  type: string
+                  format: date-time
+                  description: Requested start time (UTC ISO-8601)
+      responses:
+        '201':
+          description: Booking line added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingLine'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/sessions/{id}/bookings/{bookingId}:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+      - $ref: '#/components/parameters/BookingId'
+    put:
+      tags: [sessions]
+      summary: Update the time slot of an existing booking line
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start]
+              properties:
+                start:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Booking line updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingLine'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
     delete:
-      summary: Placeholder for calendar resource deletion
+      tags: [sessions]
+      summary: Remove a booking line from an open session
       responses:
         '204':
-          description: Deleted
+          description: Booking line removed
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/sessions/{id}/submit:
+    parameters:
+      - $ref: '#/components/parameters/SessionId'
+    post:
+      tags: [sessions]
+      summary: Submit the session for admin review
+      description: |
+        Finalises the session. All booking lines must have a start time assigned
+        and none may overlap with an already-confirmed booking. Contact details
+        are provided in the request body.
+
+        Once submitted the session transitions to `reserved`; the customer
+        cannot modify it further. The admin will review the session and confirm
+        or reject each booking, then send a result e-mail.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Contact'
+      responses:
+        '200':
+          description: Session submitted; returns session ID and booking summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  # ── Token-authenticated booking management ───────────────────────────────
+
+  /api/v1/bookings/{id}:
+    parameters:
+      - $ref: '#/components/parameters/BookingId'
+      - name: token
+        in: query
+        required: true
+        description: HMAC-SHA256 management token from the management link URL
+        schema:
+          type: string
+    get:
+      tags: [bookings]
+      summary: Fetch a single booking via management link
+      responses:
+        '200':
+          description: Booking details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [bookings]
+      summary: Cancel a booking (customer-initiated, token-authenticated)
+      responses:
+        '204':
+          description: Booking cancelled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/bookings/{id}/reschedule:
+    parameters:
+      - $ref: '#/components/parameters/BookingId'
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [bookings]
+      summary: Reschedule a booking to a new time slot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_start]
+              properties:
+                new_start:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Booking rescheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/bookings/{id}/new-session:
+    parameters:
+      - $ref: '#/components/parameters/BookingId'
+      - name: token
+        in: query
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [bookings]
+      summary: Start a new booking session for the same service
+      description: |
+        Creates a new empty session pre-seeded with the service of the referenced
+        booking. The response session ID is used to restart the booking flow from
+        step 2 without having to re-select the service.
+      responses:
+        '201':
+          description: New session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Authentication ───────────────────────────────────────────────────────
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Admin login with username and password
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful; session cookie is set
+        '401':
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Admin logout; invalidates the session cookie
+      responses:
+        '204':
+          description: Logged out
+
+  /auth/apple:
+    get:
+      tags: [auth]
+      summary: Initiate Apple Sign-In OAuth flow
+      responses:
+        '302':
+          description: Redirect to Apple authorisation endpoint
+
+  # ── Admin API ────────────────────────────────────────────────────────────
+
+  /admin/api/v1/dashboard:
+    get:
+      tags: [admin-dashboard]
+      summary: Fetch dashboard data (today's bookings + pending sessions)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Dashboard payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/api/v1/services:
+    get:
+      tags: [admin-services]
+      summary: List all services (admin view)
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Array of services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Service'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [admin-services]
+      summary: Create a new service
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceInput'
+      responses:
+        '201':
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/api/v1/services/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ServiceId'
+    put:
+      tags: [admin-services]
+      summary: Update an existing service
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceInput'
+      responses:
+        '200':
+          description: Service updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [admin-services]
+      summary: Delete a service
+      description: |
+        A service with active (`reserved` or `confirmed`) bookings cannot be
+        deleted; the server returns `409 Conflict` in that case.
+      security:
+        - sessionCookie: []
+      responses:
+        '204':
+          description: Service deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /admin/api/v1/sessions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/AdminSessionId'
+    get:
+      tags: [admin-sessions]
+      summary: Fetch a booking session for review
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Session with all booking lines
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/api/v1/sessions/{id}/bookings/{bookingId}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/AdminSessionId'
+      - $ref: '#/components/parameters/BookingId'
+    post:
+      tags: [admin-sessions]
+      summary: Confirm an individual booking within a session
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Booking confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /admin/api/v1/sessions/{id}/bookings/{bookingId}/reject:
+    parameters:
+      - $ref: '#/components/parameters/AdminSessionId'
+      - $ref: '#/components/parameters/BookingId'
+    post:
+      tags: [admin-sessions]
+      summary: Reject an individual booking within a session
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Booking rejected (state set to cancelled)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/api/v1/bookings/{id}/noshow:
+    parameters:
+      - $ref: '#/components/parameters/BookingId'
+    post:
+      tags: [admin-sessions]
+      summary: Mark a confirmed booking as no-show
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Booking marked as no-show
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /admin/api/v1/settings:
+    get:
+      tags: [admin-settings]
+      summary: Fetch global settings
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Settings object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      tags: [admin-settings]
+      summary: Update global settings
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SettingsInput'
+      responses:
+        '200':
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/api/v1/settings/tandc:
+    post:
+      tags: [admin-settings]
+      summary: Upload the Terms and Conditions PDF
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PDF file; maximum size 10 MB
+      responses:
+        '200':
+          description: Upload successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filename:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          description: Payload too large (file exceeds 10 MB limit)
+
+  /admin/api/v1/settings/secret:
+    get:
+      tags: [admin-settings]
+      summary: Download the current HMAC signing secret
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Raw secret bytes as a file download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [admin-settings]
+      summary: Replace the HMAC signing secret
+      description: |
+        Uploading a new secret immediately invalidates all existing management
+        links. Warn the admin before executing this operation.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '204':
+          description: Secret replaced
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: schedio_session
+
+  parameters:
+    SessionId:
+      name: id
+      in: path
+      required: true
+      description: Booking session ID
+      schema:
+        type: string
+        format: uuid
+
+    AdminSessionId:
+      name: id
+      in: path
+      required: true
+      description: Booking session ID (admin context)
+      schema:
+        type: string
+        format: uuid
+
+    BookingId:
+      name: bookingId
+      in: path
+      required: true
+      description: Booking ID
+      schema:
+        type: string
+        format: uuid
+
+    ServiceId:
+      name: id
+      in: path
+      required: true
+      description: Service ID
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Invalid request body or query parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Valid token but access denied (e.g. wrong booking ID)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: >
+        State conflict — e.g. requested slot already taken, session already
+        submitted, or service has active bookings.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+
+    Service:
+      type: object
+      required: [id, name, description, price, duration_minutes, daily_limit]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Beratungsgespräch
+        description:
+          type: string
+        price:
+          type: number
+          format: double
+          minimum: 0
+          example: 49.50
+        duration_minutes:
+          type: integer
+          minimum: 1
+          example: 60
+        daily_limit:
+          type: integer
+          minimum: 0
+          description: Maximum bookings per day; 0 means unlimited
+          example: 0
+
+    ServiceInput:
+      type: object
+      required: [name, description, price, duration_minutes]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: double
+          minimum: 0
+        duration_minutes:
+          type: integer
+          minimum: 1
+        daily_limit:
+          type: integer
+          minimum: 0
+          default: 0
+
+    TimeSlot:
+      type: object
+      required: [start, end]
+      properties:
+        start:
+          type: string
+          format: date-time
+          example: '2026-03-15T10:00:00Z'
+        end:
+          type: string
+          format: date-time
+          example: '2026-03-15T11:00:00Z'
+
+    Contact:
+      type: object
+      required: [name, email, phone]
+      properties:
+        name:
+          type: string
+          example: Erika Mustermann
+        email:
+          type: string
+          format: email
+          example: erika@example.de
+        phone:
+          type: string
+          example: '+49 30 12345678'
+
+    BookingLine:
+      type: object
+      required: [id, service_id, start, end]
+      properties:
+        id:
+          type: string
+          format: uuid
+        service_id:
+          type: string
+          format: uuid
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+
+    Session:
+      type: object
+      required: [id, service_id]
+      properties:
+        id:
+          type: string
+          format: uuid
+        service_id:
+          type: string
+          format: uuid
+        bookings:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingLine'
+
+    SubmitResponse:
+      type: object
+      required: [session_id, bookings]
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        bookings:
+          type: array
+          items:
+            $ref: '#/components/schemas/BookingLine'
+
+    Booking:
+      type: object
+      required: [id, session_id, service, contact, start_at, end_at, state]
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        service:
+          $ref: '#/components/schemas/Service'
+        contact:
+          $ref: '#/components/schemas/Contact'
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+        state:
+          type: string
+          enum: [reserved, confirmed, cancelled]
+        cancel_reason:
+          type: string
+          enum: [customer, admin, noshow]
+          nullable: true
+        location:
+          type: string
+
+    BookingSession:
+      type: object
+      required: [id, service, contact, bookings, submitted_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        service:
+          $ref: '#/components/schemas/Service'
+        contact:
+          $ref: '#/components/schemas/Contact'
+        bookings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Booking'
+        booking_count:
+          type: integer
+        submitted_at:
+          type: string
+          format: date-time
+
+    DashboardResponse:
+      type: object
+      required: [bookings_today, pending_sessions]
+      properties:
+        bookings_today:
+          type: array
+          items:
+            $ref: '#/components/schemas/Booking'
+          description: >
+            All bookings for today. The UI filters to show only
+            `reserved` and `confirmed` states.
+        pending_sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingSession'
+
+    PendingSession:
+      type: object
+      required: [id, service, contact, booking_count, submitted_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        service:
+          $ref: '#/components/schemas/Service'
+        contact:
+          $ref: '#/components/schemas/Contact'
+        booking_count:
+          type: integer
+        earliest_booking_at:
+          type: string
+          format: date-time
+          description: Start time of the earliest booking in the session
+        submitted_at:
+          type: string
+          format: date-time
+
+    Settings:
+      type: object
+      required: [no_show_deadline_hours, currency, appointment_location]
+      properties:
+        no_show_deadline_hours:
+          type: integer
+          minimum: 0
+          example: 24
+        currency:
+          type: string
+          example: EUR
+        appointment_location:
+          type: string
+          example: 'Musterstraße 1, 10115 Berlin'
+        tandc_filename:
+          type: string
+          nullable: true
+          example: agb.pdf
+
+    SettingsInput:
+      type: object
+      properties:
+        no_show_deadline_hours:
+          type: integer
+          minimum: 0
+        currency:
+          type: string
+        appointment_location:
+          type: string
