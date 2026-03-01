@@ -92,10 +92,10 @@ type Config struct {
 	Verbose          int             `yaml:"verbose"`
 	Dummy            bool            `yaml:"dummy"`
 	ConfigFile       string          `yaml:"-"`
-	ServicesFile     string          `yaml:"-"`
+	ServicesFile     string          `yaml:"servicesFile"`
 	Services         []ServiceEntry  `yaml:"-"`
-	UsersFile        string          `yaml:"-"`
+	UsersFile        string          `yaml:"usersFile"`
 	Users            []UserEntry     `yaml:"-"`
-	AvailabilityFile string          `yaml:"-"`
+	AvailabilityFile string          `yaml:"availabilityFile"`
 	Timeslots        []TimeslotEntry `yaml:"-"`
 }
