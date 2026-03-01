@@ -1,0 +1,6 @@
+Hallo {{.Contact.FirstName}} {{.Contact.LastName}},
+
+Ihre Buchung am {{.Booking.StartAt.Format "02.01.2006 15:04"}} Uhr wurde storniert.
+
+Mit freundlichen Grüßen
+Ihr Team

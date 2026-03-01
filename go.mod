@@ -8,12 +8,13 @@ require (
 	github.com/emersion/go-ical v0.0.0-20240127095438-fc1c9d8fb2b6
 	github.com/emersion/go-webdav v0.7.0
 	github.com/swaggo/http-swagger v1.3.4
+	github.com/teambition/rrule-go v1.8.2
+	golang.org/x/crypto v0.48.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
 	github.com/go-logr/logr v1.4.1 // indirect
-	github.com/teambition/rrule-go v1.8.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
@@ -28,8 +29,8 @@ require (
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/swaggo/files v0.0.0-20220610200504-28940afbdbfe // indirect
 	github.com/swaggo/swag v1.8.1 // indirect
-	golang.org/x/net v0.7.0 // indirect
-	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/net v0.49.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/tools v0.1.12 // indirect
 	k8s.io/klog/v2 v2.130.1
 )

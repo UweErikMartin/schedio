@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -20,11 +21,16 @@ func randomRootPath() string {
 	return paths[rand.Intn(len(paths))]
 }
 
+func newTestRouter(args config.Config) http.Handler {
+	st := calstore.NewMemoryStore()
+	return NewRouter(&args, st, st)
+}
+
 func TestRouter_ServesOpenAPISpec(t *testing.T) {
 	args := config.Config{
 		RootPath: randomRootPath(),
 	}
-	router := NewRouter(&args, calstore.NewMemoryStore())
+	router := newTestRouter(args)
 
 	port := randomPort()
 	rootPath := args.RootPath
@@ -60,7 +66,7 @@ func TestRouter_ServesSwaggerUIIndex(t *testing.T) {
 		RootPath: randomRootPath(),
 		Port:     randomPort(),
 	}
-	router := NewRouter(&args, calstore.NewMemoryStore())
+	router := newTestRouter(args)
 
 	port := args.Port
 	rootPath := args.RootPath
@@ -96,7 +102,7 @@ func TestRouter_ServesWebUIWithRootPathPrefix(t *testing.T) {
 	args := config.Config{
 		RootPath: "/ui",
 	}
-	router := NewRouter(&args, calstore.NewMemoryStore())
+	router := newTestRouter(args)
 
 	t.Run("index", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "http://example.com/ui/", nil)
@@ -127,4 +133,54 @@ func TestRouter_ServesWebUIWithRootPathPrefix(t *testing.T) {
 			t.Fatalf("content-type = %q, want javascript", rec.Header().Get("Content-Type"))
 		}
 	})
+}
+
+func TestRouter_ServesPublicServices(t *testing.T) {
+	rootPath := randomRootPath()
+	args := config.Config{
+		RootPath: rootPath,
+		Services: []config.ServiceEntry{
+			{
+				ID:              "bbbbbbbb-0001-4000-8000-000000000001",
+				Name:            "Test Service",
+				Summary:         "A summary",
+				Description:     "A description",
+				Price:           25.00,
+				DurationMinutes: 45,
+				DailyLimit:      5,
+			},
+		},
+	}
+	router := newTestRouter(args)
+
+	path := fmt.Sprintf("%s/api/v1/services", rootPath)
+	req := httptest.NewRequest(http.MethodGet, "http://example.com"+path, nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rootPath=%q: status = %d, want %d (body: %s)", rootPath, rec.Code, http.StatusOK, rec.Body.String())
+	}
+
+	ct := rec.Header().Get("Content-Type")
+	if !strings.Contains(strings.ToLower(ct), "application/json") {
+		t.Errorf("rootPath=%q: Content-Type = %q; want application/json", rootPath, ct)
+	}
+
+	var got []map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("rootPath=%q: failed to decode JSON: %v", rootPath, err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("rootPath=%q: expected 1 service, got %d", rootPath, len(got))
+	}
+	if got[0]["name"] != "Test Service" {
+		t.Errorf("rootPath=%q: name = %q; want %q", rootPath, got[0]["name"], "Test Service")
+	}
+	if got[0]["id"] != "bbbbbbbb-0001-4000-8000-000000000001" {
+		t.Errorf("rootPath=%q: id = %q; want %q", rootPath, got[0]["id"], "bbbbbbbb-0001-4000-8000-000000000001")
+	}
+	if _, ok := got[0]["daily_limit"]; ok {
+		t.Errorf("rootPath=%q: daily_limit must not be present in the public response", rootPath)
+	}
 }

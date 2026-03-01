@@ -1,5 +1,7 @@
-// Package store defines the application's internal calendar data model and the
-// CalendarStore interface used by the CalDAV facade and any future adapters.
+// Package store defines the data model and store interfaces for the schedio
+// application. CalDAV-level types live in this file; domain-level types
+// (User, Service, Timeslot, Contact, BookingSession, Booking, Settings) live
+// in model_domain.go.
 package store
 
 import "time"

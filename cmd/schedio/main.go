@@ -33,9 +33,28 @@ func main() {
 	} else {
 		caldavStore = calstore.NewMemoryStore()
 	}
+	domainStore := calstore.NewMemoryStore()
+	if len(args.Users) > 0 {
+		klog.Infof("syncing %d users into domain store", len(args.Users))
+		if err := syncUsersFromConfig(args.Users, domainStore); err != nil {
+			klog.Fatalf("error syncing users: %v", err)
+		}
+	}
+	if len(args.Services) > 0 {
+		klog.Infof("syncing %d services into domain store", len(args.Services))
+		if err := syncServicesFromConfig(args.Services, domainStore); err != nil {
+			klog.Fatalf("error syncing services: %v", err)
+		}
+	}
+	if len(args.Timeslots) > 0 {
+		klog.Infof("syncing %d timeslots into domain store", len(args.Timeslots))
+		if err := syncTimeslotsFromConfig(args.Timeslots, domainStore); err != nil {
+			klog.Fatalf("error syncing timeslots: %v", err)
+		}
+	}
 	httpServer := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", args.BindAddress, args.Port),
-		Handler:           middleware.LoggingMiddleware(server.NewRouter(&args, caldavStore)),
+		Handler:           middleware.LoggingMiddleware(server.NewRouter(&args, caldavStore, domainStore)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -65,4 +84,79 @@ func main() {
 	}
 
 	klog.Info("schedio stopped")
+}
+
+// syncUsersFromConfig converts the config.UserEntry list (read from -usersFile)
+// into store.User values and syncs them into the domain store. When a UserEntry
+// carries an explicit ID it is used as-is so that cross-references from the
+// availability file remain stable across restarts.
+func syncUsersFromConfig(entries []config.UserEntry, st *calstore.MemoryStore) error {
+	users := make([]*calstore.User, len(entries))
+	for i, e := range entries {
+		id := e.ID
+		if id == "" {
+			id = calstore.NewID()
+		}
+		users[i] = &calstore.User{
+			ID:                id,
+			Email:             e.Email,
+			PasswordHash:      e.PasswordHash,
+			Role:              calstore.UserRole(e.Role),
+			AppleOAuthEnabled: e.AppleOAuthEnabled,
+			AppleSubject:      e.AppleSubject,
+			Name:              e.Name,
+		}
+	}
+	return st.SyncUsers(context.Background(), users)
+}
+
+// syncTimeslotsFromConfig converts the config.TimeslotEntry list (read from
+// -availabilityFile) into store.Timeslot values and upserts them into the
+// domain store. Each entry is idempotent: re-running with the same file
+// produces the same in-memory state.
+func syncTimeslotsFromConfig(entries []config.TimeslotEntry, st *calstore.MemoryStore) error {
+	for _, e := range entries {
+		start, err := time.Parse(time.RFC3339, e.StartAt)
+		if err != nil {
+			return fmt.Errorf("timeslot %q: invalid start_at %q: %w", e.UID, e.StartAt, err)
+		}
+		end, err := time.Parse(time.RFC3339, e.EndAt)
+		if err != nil {
+			return fmt.Errorf("timeslot %q: invalid end_at %q: %w", e.UID, e.EndAt, err)
+		}
+		ts := &calstore.Timeslot{
+			ID:        calstore.NewID(),
+			UserID:    e.UserID,
+			CalDAVUID: e.UID,
+			StartAt:   start,
+			EndAt:     end,
+			RRule:     e.RRule,
+		}
+		if err := st.UpsertTimeslot(context.Background(), ts); err != nil {
+			return fmt.Errorf("upsert timeslot %q: %w", e.UID, err)
+		}
+	}
+	return nil
+}
+
+// syncServicesFromConfig converts the config.ServiceEntry list (read from
+// -servicesFile or the built-in defaults) into store.Service values and
+// creates them in the domain store. The domain store is always empty at
+// startup so CreateService will never encounter a conflict here.
+func syncServicesFromConfig(entries []config.ServiceEntry, st *calstore.MemoryStore) error {
+	for _, e := range entries {
+		svc := &calstore.Service{
+			ID:              e.ID,
+			Name:            e.Name,
+			Summary:         e.Summary,
+			Description:     e.Description,
+			Price:           e.Price,
+			DurationMinutes: e.DurationMinutes,
+			DailyLimit:      e.DailyLimit,
+		}
+		if err := st.CreateService(context.Background(), svc); err != nil {
+			return fmt.Errorf("create service %q: %w", e.ID, err)
+		}
+	}
+	return nil
 }

@@ -9,23 +9,51 @@ import (
 	"time"
 )
 
-// MemoryStore is a thread-safe, in-memory CalendarStore.
-// It is pre-seeded with a single default calendar and is intended for
-// development and testing. Replace it with a persistent implementation
-// in production.
+// MemoryStore is a thread-safe, in-memory implementation of both CalendarStore
+// and DomainStore. It is pre-seeded with a single default calendar and default
+// Settings, and is intended for development and testing. Replace it with a
+// persistent implementation in production.
 type MemoryStore struct {
-	mu        sync.RWMutex
-	calendars map[string]*Calendar
-	events    map[string]map[string]*Event // calendarID → eventID → *Event
-	ctags     map[string]string            // calendarID → opaque ctag
+	mu         sync.RWMutex
+	calendars  map[string]*Calendar
+	events     map[string]map[string]*Event // calendarID → eventID → *Event
+	ctags      map[string]string            // calendarID → opaque ctag
+	users      map[string]*User             // userID → *User
+	userEmails map[string]string            // email → userID
+	services   map[string]*Service          // serviceID → *Service
+	timeslots  map[string]*Timeslot         // CalDAVUID → *Timeslot
+	contacts   map[string]*Contact          // contactID → *Contact
+	emailIndex map[string]string            // contact email → contactID
+	sessions   map[string]*BookingSession   // sessionID → *BookingSession
+	bookings   map[string]*Booking          // bookingID → *Booking
+	settings   Settings                     // single instance
+	hmacSecret []byte
 }
 
-// NewMemoryStore creates an initialised MemoryStore with one default calendar.
+// NewMemoryStore creates an initialised MemoryStore with one default calendar
+// and default application settings.
 func NewMemoryStore() *MemoryStore {
 	s := &MemoryStore{
-		calendars: make(map[string]*Calendar),
-		events:    make(map[string]map[string]*Event),
-		ctags:     make(map[string]string),
+		calendars:  make(map[string]*Calendar),
+		events:     make(map[string]map[string]*Event),
+		ctags:      make(map[string]string),
+		users:      make(map[string]*User),
+		userEmails: make(map[string]string),
+		services:   make(map[string]*Service),
+		timeslots:  make(map[string]*Timeslot),
+		contacts:   make(map[string]*Contact),
+		emailIndex: make(map[string]string),
+		sessions:   make(map[string]*BookingSession),
+		bookings:   make(map[string]*Booking),
+		settings: Settings{
+			NoShowDeadlineHours:  24,
+			RetentionPeriodDays:  30,
+			ReminderLeadTimeDays: 1,
+			Currency:             "EUR",
+			// SenderName is intentionally empty here. The router bootstrap seeds
+			// it from args.SenderName (CLI flag / config file) on first startup,
+			// so the correct operator-supplied value is always used.
+		},
 	}
 	defaultCal := &Calendar{
 		ID:          "default",
@@ -164,6 +192,20 @@ func (s *MemoryStore) CTag(_ context.Context, calendarID string) (string, error)
 	}
 	return ctag, nil
 }
+
+// newUUID returns a random UUID v4 string (xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx).
+func newUUID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%016x-%d", time.Now().UnixNano(), time.Now().UnixNano())
+	}
+	b[6] = (b[6] & 0x0f) | 0x40 // version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // variant bits RFC 4122
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
+}
+
+// NewID returns a random UUID v4 string, suitable for use as a domain entity ID.
+func NewID() string { return newUUID() }
 
 // newToken returns a random hex string suitable for use as ETag or CTag.
 func newToken() string {

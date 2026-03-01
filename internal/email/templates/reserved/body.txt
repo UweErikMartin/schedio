@@ -1,0 +1,12 @@
+Hallo {{.Contact.FirstName}} {{.Contact.LastName}},
+
+vielen Dank für Ihre Buchungsanfrage. Wir haben Ihre Anfrage empfangen und werden sie in Kürze bearbeiten.
+
+Ihre Terminwünsche:
+{{range .Bookings}}  - {{.StartAt.Format "02.01.2006 15:04"}} bis {{.EndAt.Format "15:04"}} Uhr
+{{end}}
+Sie können Ihre Buchung über folgenden Link verwalten:
+{{.ManageLink}}
+
+Mit freundlichen Grüßen
+Ihr Team

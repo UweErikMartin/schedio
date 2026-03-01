@@ -14,6 +14,12 @@ var dateTimePickerJS []byte
 //go:embed js/x-service-picker.js
 var servicePickerJS []byte
 
+//go:embed js/x-toast.js
+var toastJS []byte
+
+//go:embed js/booking/booking-app.js
+var bookingAppJS []byte
+
 //go:embed css/styles.css
 var stylesCSS []byte
 
@@ -26,13 +32,15 @@ var favicon []byte
 // assetMap maps URL paths to embedded file content.
 // Initialised once at startup; rebuilt on every request would be wasteful.
 var assetMap = map[string][]byte{
-	"/js/default.js":            defaultJS,
-	"/js/x-date-time-picker.js": dateTimePickerJS,
-	"/js/x-service-picker.js":   servicePickerJS,
-	"/css/styles.css":           stylesCSS,
-	"/favicon.ico":              favicon,
-	"/":                         indexHTML,
-	"/index.html":               indexHTML,
+	"/js/default.js":             defaultJS,
+	"/js/x-date-time-picker.js":  dateTimePickerJS,
+	"/js/x-service-picker.js":    servicePickerJS,
+	"/js/x-toast.js":             toastJS,
+	"/js/booking/booking-app.js": bookingAppJS,
+	"/css/styles.css":            stylesCSS,
+	"/favicon.ico":               favicon,
+	"/":                          indexHTML,
+	"/index.html":                indexHTML,
 }
 
 func GetContent(path string) ([]byte, error) {

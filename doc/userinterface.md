@@ -284,14 +284,13 @@ booking flow.
 
 1. On `connectedCallback`, fetches `services-endpoint`; shows spinner during fetch.
 2. On HTTP error or network failure, renders error state with retry button.
-3. When the services list is empty (API returns `[]`), renders an "Keine Dienste verfÃ¼gbar" message.
-4. Renders one card per service, showing name, description, price (formatted with `Intl.NumberFormat`), and duration in minutes.
+3. When the services list is empty (API returns `[]`), renders an "Keine Dienste verfügbar" message.
+4. Renders one card per service showing: name, summary, price (formatted with `Intl.NumberFormat`), and duration in minutes.
 5. Clicking a service card opens the detail view for that service.
-6. Detail view shows full description, price, and duration; has a "AuswÃ¤hlen" button and a back button.
-7. Clicking "AuswÃ¤hlen" dispatches `service-selected` with the full service object.
+6. Detail view shows name, summary, full description, price, and duration; has a "Auswählen" button and a back button.
+7. Clicking "Auswählen" dispatches `service-selected` with the full service object.
 8. Only one service may be selected; selecting a second service dispatches `service-selected` again (the parent discards the old session).
 9. When `services` property is set externally, fetch is skipped.
-10. Price `0` is displayed as "Kostenlos" or equivalent culture-sensitive free label.
 
 ---
 
@@ -473,7 +472,7 @@ all booking lines with formatted date/time, and contact details. Used in step 4
 
 1. Service name, price (formatted), and duration are rendered.
 2. Each booking line renders the date and start time using `Intl.DateTimeFormat` with the user's locale.
-3. Contact name, email, and phone are rendered.
+3. Contact first name, last name, e-mail, and phone are rendered.
 4. No interactive elements are rendered (read-only).
 5. When `lines` is empty, a clear "Keine Termine ausgewÃ¤hlt" message is shown.
 6. The component gracefully handles `null` for `service` or `contact` by showing skeleton placeholders.
@@ -506,7 +505,6 @@ mandatory acceptance checkbox. Emits an event when the checkbox state changes.
 5. When `tandc-url` is empty or absent, the link is not rendered and a fallback "T&C nicht verfÃ¼gbar" notice is shown.
 
 ---
-
 
 ### 5.12 Component: `<x-booking-success>`
 
@@ -809,6 +807,7 @@ presence check and renders the login view when unauthenticated.
 | `services` | Path starts with `/admin/services/` |
 | `session-review` | Path matches `/admin/session/{id}` |
 | `settings` | Path starts with `/admin/settings/` |
+| `retention` | Path starts with `/admin/retention/` |
 
 **Testable behaviours** — Independently verifiable assertions for unit and e2e tests.
 
@@ -830,7 +829,7 @@ viewports.
 
 | Attribute | Type | Description |
 | --- | --- | --- |
-| `active` | `string` | One of `dashboard`, `services`, `settings` |
+| `active` | `string` | One of `dashboard`, `services`, `settings`, `retention` |
 
 **Custom events** — DOM CustomEvents dispatched by this component.
 
@@ -841,7 +840,7 @@ viewports.
 
 **Testable behaviours** — Independently verifiable assertions for unit and e2e tests.
 
-1. Renders links for "Dashboard", "Dienste", and "Einstellungen".
+1. Renders links for "Dashboard", "Dienste", "Einstellungen", and "Datenlöschung".
 2. The link matching `active` has `aria-current="page"` and a distinctive active style.
 3. Clicking a link dispatches `nav-navigate` with the target path without performing a full navigation.
 4. Clicking "Abmelden" sends `POST /auth/logout` and dispatches `nav-logout`.
@@ -850,34 +849,45 @@ viewports.
 
 ---
 
-### 8.4 Login view â€” Component: `<x-login-form>`
+### 8.4 Login view – Component: `<x-login-form>`
 
 **Responsibility** Renders the admin login page with username/password fields
-and an "Anmelden mit Apple" button.
+and an "Anmelden" button plus a (normally disabled) "Anmelden mit Apple" button.
+The Apple button is enabled dynamically after the username field loses focus
+(`blur`) or the user presses Enter, if `GET /auth/apple/available?username=`
+returns `{ "apple_enabled": true }`.
 
 **Observed attributes** — HTML attributes set in markup, reflected as JS properties.
 
 | Attribute | Type | Description |
 | --- | --- | --- |
-| `apple-enabled` | `boolean` | Shows Apple Sign-In button when present |
+| `action` | `string` | URL to POST credentials to; default `/auth/login` |
 
 **Custom events** — DOM CustomEvents dispatched by this component.
 
 | Event | `detail` | When |
 | --- | --- | --- |
-| `login-success` | `{}` | Admin API confirmed valid credentials |
+| `login-success` | `{ role: string }` | Server confirmed valid credentials |
 | `login-error` | `{ message: string }` | Login failed |
+
+**Internal states**: `idle`, `checking-apple`, `ready`.
 
 **Testable behaviours** — Independently verifiable assertions for unit and e2e tests.
 
-1. Renders username and password inputs plus a "Anmelden" button.
-2. Submitting empty fields shows validation errors; no API call is made.
-3. Submitting valid credentials calls `POST /auth/login` with `application/x-www-form-urlencoded` body.
-4. On `200` response, dispatches `login-success`.
-5. On `401` response, renders an inline error and dispatches `login-error`.
-6. When `apple-enabled` is present, an "Anmelden mit Apple" button links to `GET /auth/apple`.
-7. Password field has `type="password"`; a show/hide toggle is provided.
-8. During the fetch the submit button is replaced by a spinner.
+1. Renders username input, password input, "Anmelden" button, and "Anmelden mit Apple" button.
+2. "Anmelden mit Apple" button starts disabled (`disabled` attribute, `aria-disabled="true"`).
+3. Does NOT query `/auth/apple/available` on every keystroke; queries on `blur` or Enter in the username field.
+4. On `blur`/Enter with a non-empty username, calls `GET /auth/apple/available?username=<url-encoded-username>`.
+5. When the response is `{ "apple_enabled": true }`, enables the "Anmelden mit Apple" button.
+6. When the response is `{ "apple_enabled": false }` or a network error occurs, the button remains disabled.
+7. Submitting empty fields shows validation errors; no API call is made.
+8. Submitting valid credentials calls `POST /auth/login` with `application/x-www-form-urlencoded` body.
+9. On `200` response, dispatches `login-success` with `{ role }` from the server response.
+10. On `401` response, renders an inline error and dispatches `login-error`.
+11. Clicking an enabled "Anmelden mit Apple" button navigates to `GET /auth/apple`.
+12. Password field has `type="password"`; a show/hide toggle is provided.
+13. During the credentials fetch, the "Anmelden" button is replaced by a spinner and cannot be clicked again.
+14. Tab order: username -> password -> "Anmelden" -> "Anmelden mit Apple".
 
 ---
 
@@ -992,7 +1002,7 @@ actions. Fetches from `GET /admin/api/v1/services`.
 
 **Testable behaviours** — Independently verifiable assertions for unit and e2e tests.
 
-1. Renders inputs for: Name, Beschreibung, Preis, Dauer (Minuten), Tageslimit.
+1. Renders inputs for: Name, Kurzfassung, Beschreibung, Preis, Dauer (Minuten), Tageslimit.
 2. When `service` is non-null all fields are pre-populated.
 3. All fields except Tageslimit (defaults to `0`) are required.
 4. Price accepts only non-negative decimal numbers.
@@ -1037,18 +1047,21 @@ each individual booking.
 
 #### 8.8.1 Component: `<x-settings-form>`
 
-**Responsibility** Edit form for general settings: no-show deadline, currency,
-appointment location.
+**Responsibility** Edit form for general settings: no-show deadline, reminder
+lead time, sender name, currency, appointment location.
 
 **Testable behaviours** — Independently verifiable assertions for unit and e2e tests.
 
 1. Fetches `GET /admin/api/v1/settings` on mount.
-2. Renders fields: No-show-Frist (Stunden), WÃ¤hrung, Terminort.
-3. No-show deadline is a positive integer input.
-4. Currency is a free-text input; a dropdown of common ISO 4217 codes is offered as a datalist.
-5. Saving calls `PUT /admin/api/v1/settings` with the updated values.
-6. On success displays a success toast.
-7. On error displays an inline error banner.
+1. Renders fields: No-show-Frist (Stunden), Aufbewahrungsfrist (Tage), Erinnerungsfrist (Tage), Absender-Name, Währung, Terminort.
+1. No-show deadline is a positive integer input.
+1. Retention period is a positive integer input (default 30); labelled "Aufbewahrungsfrist (Tage)".
+1. Reminder lead time is a positive integer input (default 1); labelled "Erinnerungsfrist (Tage)".
+1. Sender name is a free-text input (default "Schedio Buchungssystem"); labelled "Absender-Name".
+1. Currency is a free-text input; a dropdown of common ISO 4217 codes is offered as a datalist.
+1. Saving calls `PUT /admin/api/v1/settings` with the updated values.
+1. On success displays a success toast.
+1. On error displays an inline error banner.
 
 ---
 
@@ -1095,7 +1108,28 @@ appointment location.
 
 ---
 
-## 9. REST API Contracts Used by the Frontend
+### 8.9 Data Retention view — Component: `<x-retention-list>`
+
+**Responsibility** Displays the list of customer contacts in `pending_deletion`
+state — i.e., whose deletion-confirmation link expired without being clicked.
+Allows Staff users to permanently delete individual records.
+
+**Internal states**: `loading`, `empty`, `ready`, `error`.
+
+**Testable behaviours** — Independently verifiable assertions for unit and e2e tests.
+
+1. On mount, calls `GET /admin/api/v1/retention/pending` and transitions from `loading` to `ready` or `error`.
+2. In `ready` state, renders a table with columns: Nachname, Vorname, E-Mail, Telefon, Frist erreicht am.
+3. Dates in the "Frist erreicht am" column are formatted with `Intl.DateTimeFormat` using the user's locale.
+4. In `empty` state (empty array response), shows a "Keine ausstehenden Löschvorgänge" message and no table.
+5. Each row has a "Löschen" button.
+6. Clicking "Löschen" opens a confirmation `<x-dialog>` asking "Kundendaten und alle Buchungen dauerhaft löschen?"
+7. Confirming the dialog calls `DELETE /admin/api/v1/retention/pending/{id}`.
+8. On successful delete, removes the row from the list and shows a success toast.
+9. On error, closes dialog and shows an `<x-error-banner>`.
+10. "Löschen" button shows a spinner while the DELETE request is in flight; the row is not removed until success.
+
+---
 
 All JSON requests use `Content-Type: application/json`; responses are also JSON
 unless stated otherwise. Auth token endpoints use
@@ -1129,7 +1163,8 @@ unless stated otherwise. Auth token endpoints use
 
 ```json
 {
-  "name": "string",
+  "first_name": "string",
+  "last_name": "string",
   "email": "string",
   "phone": "string"
 }
@@ -1173,8 +1208,11 @@ unless stated otherwise. Auth token endpoints use
 ```json
 {
   "no_show_deadline_hours": 24,
+  "retention_period_days": 30,
+  "reminder_lead_time_days": 1,
+  "sender_name": "Schedio Buchungssystem",
   "currency": "EUR",
-  "appointment_location": "MusterstraÃŸe 1, 10115 Berlin",
+  "appointment_location": "Musterstraße 1, 10115 Berlin",
   "tandc_filename": "agb.pdf"
 }
 ```
@@ -1232,11 +1270,11 @@ wider viewports. All layout rules are pure CSS using `display: grid` and
 The contact form uses a two-column grid on `â‰¥ 480px` viewports:
 
 ```text
-< 480px          â‰¥ 480px
-Name             Name        â”‚  Email
-Email            Phone       â”‚
-Phone            Notes (full width across both columns)
-Notes
+< 480px          ≥ 480px
+Vorname          Vorname     │  Nachname
+Nachname         E-Mail      │
+E-Mail           Telefon     │
+Telefon
 ```
 
 ---
@@ -1280,6 +1318,7 @@ web/js/
     x-settings-form.js
     x-tandc-upload.js
     x-secret-manager.js
+    x-retention-list.js
 web/css/
   tokens.css              â† design tokens only; imported inside every shadow root
   reset.css               â† minimal global reset (box-sizing, margin, padding)

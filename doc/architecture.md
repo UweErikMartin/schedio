@@ -65,7 +65,7 @@ cmd/schedio/main.go
   │     └── memory.Store             // implements CalendarStore + DomainStore
   ├── token.NewSigner()               // loads or generates HMAC secret
   ├── email.NewSender()               // SMTP client
-  ├── retention.StartJob()            // background goroutine
+  ├── retention.StartJob()            // background goroutine; runs at AUTOMATED_TASKS_RUN_AT (default 08:00)
   └── server.NewRouter()
         ├── middleware.LoggingMiddleware
         ├── handlers (customer REST)
@@ -108,10 +108,11 @@ cmd/schedio/main.go
 | Package | Responsibility |
 | --- | --- |
 | `internal/domain` | Pure business logic: availability calculation, double-booking prevention, booking state machine, conflict detection |
-| `internal/auth` | Apple Sign-In (OAuth 2.0 / OIDC), bcrypt username/password, signed HTTP-only cookie session management |
+| `internal/auth` | Apple Sign-In (OAuth 2.0 / OIDC), bcrypt username/password, role-based session management; loads users from `USERS_CONFIG_FILE` at startup and calls `DomainStore.SyncUsers` |
 | `internal/email` | SMTP client, Go `text/template` templates, domain-level send functions (reserved, result, change, cancel, admin-notify, admin-conflict) |
 | `internal/token` | HMAC-SHA256 token sign / verify for management links |
-| `internal/retention` | Background goroutine that periodically deletes expired contact and booking data |
+| `internal/retention` | Background goroutine (runs daily at `AUTOMATED_TASKS_RUN_AT`): reminder e-mails (Pass 0), billing (Pass 1), retention-due notification (Pass 2), confirmation-link expiry check (Pass 3), pending-deletion escalation |
+| `internal/billing` | Invoice generation and file storage (`DATA_DIR/invoices/`); triggers Staff e-mail with invoice content |
 | `internal/store/postgres` | PostgreSQL implementation of `CalendarStore` + `DomainStore`; embedded SQL migrations via `//go:embed` |
 
 ---
@@ -140,9 +141,11 @@ Covers all domain-level persistence required by business logic and REST handlers
 
 ```go
 type DomainStore interface {
-    // --- Staff ---
+    // --- Staff / Users ---
+    SyncUsers(ctx, users []*User) error // called at startup to sync config file into store
     ListStaff(ctx) ([]*Staff, error)
     GetStaff(ctx, id) (*Staff, error)
+    GetUserByEmail(ctx, email string) (*User, error)
 
     // --- Services ---
     ListServices(ctx) ([]*Service, error)
@@ -152,15 +155,18 @@ type DomainStore interface {
     DeleteService(ctx, id) error        // returns ErrConflict if active bookings exist
 
     // --- Timeslots (availability windows) ---
-    ListTimeslots(ctx, staffID string, start, end time.Time) ([]*Timeslot, error)
-    GetTimeslot(ctx, staffID, uid string) (*Timeslot, error)
+    ListTimeslots(ctx, userID string, start, end time.Time) ([]*Timeslot, error)
+    GetTimeslot(ctx, userID, uid string) (*Timeslot, error)
     UpsertTimeslot(ctx, t *Timeslot) error
-    DeleteTimeslot(ctx, staffID, uid string) error
+    DeleteTimeslot(ctx, userID, uid string) error
 
     // --- Contacts ---
     GetOrCreateContact(ctx, email string, c *Contact) (*Contact, error)
     GetContact(ctx, id) (*Contact, error)
-    UpdateContactLastBooking(ctx, contactID string, at time.Time) error
+    // UpdateContactLastAppointment updates last_appointment_end_at to the given
+    // appointment end time when it is later than the stored value, and resets
+    // billing_generated = false and retention_state = 'active' in that case.
+    UpdateContactLastAppointment(ctx, contactID string, appointmentEndAt time.Time) error
 
     // --- Booking sessions ---
     CreateSession(ctx, s *BookingSession) error
@@ -177,7 +183,7 @@ type DomainStore interface {
     UpdateBooking(ctx, b *Booking) error
     ListBookingsForSession(ctx, sessionID) ([]*Booking, error)
     ListBookingsForDay(ctx, date time.Time) ([]*Booking, error)
-    ListActiveBookingsInWindow(ctx, staffID string, start, end time.Time) ([]*Booking, error)
+    ListActiveBookingsInWindow(ctx, userID string, start, end time.Time) ([]*Booking, error)
 
     // --- Settings ---
     GetSettings(ctx) (*Settings, error)
@@ -186,7 +192,41 @@ type DomainStore interface {
     SetHMACSecret(ctx, secret []byte) error
 
     // --- Retention ---
-    DeleteExpiredContacts(ctx, olderThan time.Time) (int, error)
+    // ListRetentionDue returns contacts whose last_appointment_end_at + retention
+    // period has passed and whose retention_state = 'active'.
+    ListRetentionDue(ctx, retentionPeriod time.Duration) ([]*Contact, error)
+    // MarkRetentionNotified sets retention_state = 'notified' and
+    // retention_notified_at = now() for the given contact.
+    MarkRetentionNotified(ctx, contactID string) error
+    // ListConfirmationExpired returns contacts where retention_state = 'notified'
+    // and retention_notified_at + 7 days ≤ now.
+    ListConfirmationExpired(ctx) ([]*Contact, error)
+    // AddToPendingDeletion sets retention_state = 'pending_deletion'.
+    AddToPendingDeletion(ctx, contactID string) error
+    // ListPendingDeletion returns all contacts with retention_state = 'pending_deletion'.
+    ListPendingDeletion(ctx) ([]*Contact, error)
+    // DeleteContact permanently deletes the contact and all associated
+    // BookingSession and Booking rows (cascade). Called by the confirmation-link
+    // handler and by the Staff pending-deletion UI.
+    DeleteContact(ctx, contactID string) error
+
+    // --- Billing ---
+    // ListBillingDue returns contacts whose last_appointment_end_at ≤ now
+    // and billing_generated = false.
+    ListBillingDue(ctx) ([]*Contact, error)
+    // MarkBillingGenerated sets billing_generated = true for the contact.
+    MarkBillingGenerated(ctx, contactID string) error
+    // ListBookingsForContact returns all non-cancelled bookings for a contact,
+    // ordered by start_at ascending.
+    ListBookingsForContact(ctx, contactID string) ([]*Booking, error)
+
+    // --- Reminders ---
+    // ListBookingsDueReminder returns confirmed bookings whose start_at falls
+    // exactly leadDays calendar days from today (in the server's local timezone)
+    // and whose reminded_at IS NULL.
+    ListBookingsDueReminder(ctx context.Context, leadDays int) ([]*Booking, error)
+    // MarkReminderSent sets reminded_at = now() for the given booking.
+    MarkReminderSent(ctx context.Context, bookingID string) error
 }
 ```
 
@@ -197,15 +237,25 @@ type DomainStore interface {
 ### 6.1 Entities
 
 ```text
-Staff
-  id          UUID  PK
-  name        TEXT
-  identifier  TEXT  UNIQUE  -- matches config.yaml entry
+User
+  id                  UUID  PK
+  email               TEXT  NOT NULL  UNIQUE  -- login username; also the CalDAV principal name for staff
+  password_hash       TEXT  NOT NULL          -- bcrypt hash (cost ≥ 12)
+  role                TEXT  NOT NULL          -- 'staff' | 'administrator'
+  apple_oauth_enabled BOOLEAN NOT NULL DEFAULT FALSE
+  apple_subject       TEXT                    -- Apple id_token `sub` claim; NULL when apple_oauth_enabled = FALSE
+  name                TEXT                    -- display name derived from email or set manually
+  created_at          TIMESTAMPTZ
+  updated_at          TIMESTAMPTZ
+
+-- Staff is an alias view / sub-set of User where role = 'staff'.
+-- Timeslot and Booking foreign keys reference User.id (staff users only).
 
 Service
   id                UUID  PK
   name              TEXT  NOT NULL
-  description       TEXT
+  summary           TEXT  NOT NULL              -- short one-line label for the selection list
+  description       TEXT                        -- full-length detail text
   price             NUMERIC(10,2)  NOT NULL
   duration_minutes  INTEGER  NOT NULL
   daily_limit       INTEGER  NOT NULL DEFAULT 0  -- 0 = unlimited
@@ -214,7 +264,7 @@ Service
 
 Timeslot
   id              UUID  PK
-  staff_id        UUID  FK → Staff
+  user_id         UUID  FK → User  -- must be a user with role = 'staff'
   caldav_uid      TEXT  UNIQUE  -- iCal UID
   caldav_etag     TEXT
   start_at        TIMESTAMPTZ  NOT NULL
@@ -225,12 +275,16 @@ Timeslot
   updated_at      TIMESTAMPTZ
 
 Contact
-  id               UUID  PK
-  name             TEXT  NOT NULL
-  email            TEXT  NOT NULL  UNIQUE
-  phone            TEXT  NOT NULL
-  created_at       TIMESTAMPTZ
-  last_booking_at  TIMESTAMPTZ  -- updated on every new booking; drives retention
+  id                      UUID  PK
+  first_name              TEXT  NOT NULL
+  last_name               TEXT  NOT NULL
+  email                   TEXT  NOT NULL  UNIQUE
+  phone                   TEXT  NOT NULL
+  created_at              TIMESTAMPTZ
+  last_appointment_end_at TIMESTAMPTZ  -- updated to max(existing, new end time) on each booking; drives retention and billing
+  retention_state         TEXT  NOT NULL DEFAULT 'active'  -- 'active' | 'notified' | 'pending_deletion'
+  retention_notified_at   TIMESTAMPTZ  -- set when retention-notify e-mail is sent
+  billing_generated       BOOLEAN  NOT NULL DEFAULT FALSE  -- reset to false when last_appointment_end_at moves forward
 
 BookingSession
   id          UUID  PK
@@ -245,7 +299,7 @@ Booking
   session_id      UUID  FK → BookingSession
   service_id      UUID  FK → Service
   contact_id      UUID  FK → Contact
-  staff_id        UUID  FK → Staff
+  user_id         UUID  FK → User   -- staff user who owns the booked timeslot
   start_at        TIMESTAMPTZ  NOT NULL
   end_at          TIMESTAMPTZ  NOT NULL
   state           TEXT  -- see §6.2
@@ -255,13 +309,17 @@ Booking
   caldav_etag     TEXT
   created_at      TIMESTAMPTZ
   updated_at      TIMESTAMPTZ
+  reminded_at     TIMESTAMPTZ  -- set when reminder e-mail is sent; NULL means not yet sent
 
 Settings                      -- single row (id = 1)
-  id                    INTEGER  PK DEFAULT 1
-  no_show_deadline_hours INTEGER NOT NULL DEFAULT 24
-  currency              TEXT    NOT NULL DEFAULT 'EUR'
-  appointment_location  TEXT
-  tandc_filename        TEXT    -- filename within DATA_DIR
+  id                        INTEGER  PK DEFAULT 1
+  no_show_deadline_hours    INTEGER  NOT NULL DEFAULT 24
+  retention_period_days     INTEGER  NOT NULL DEFAULT 30    -- admin-configurable; DATA_RETENTION_DAYS seeds this on first startup
+  reminder_lead_time_days   INTEGER  NOT NULL DEFAULT 1     -- admin-configurable number of days before an appointment at which the reminder e-mail is sent
+  sender_name               TEXT     NOT NULL DEFAULT 'Schedio Buchungssystem'  -- From: display name for customer e-mails; seeded from SMTP_FROM_NAME
+  currency                  TEXT     NOT NULL DEFAULT 'EUR'
+  appointment_location      TEXT
+  tandc_filename            TEXT    -- filename within DATA_DIR
 
 HMACSecret                    -- single row
   id          INTEGER  PK DEFAULT 1
@@ -326,26 +384,36 @@ cancel_reason field distinguishes the three CANCELLED states:
 | `GET/POST` | `/auth/login` | Username / password login form + handler |
 | `GET` | `/auth/apple` | Redirect to Apple OAuth 2.0 / OIDC |
 | `GET` | `/auth/apple/callback` | Apple OAuth callback; establishes session cookie |
+| `GET` | `/auth/apple/available` | Returns `{ apple_enabled: bool }` for a given `?username=` without revealing whether the account exists |
 | `POST` | `/auth/logout` | Invalidate session cookie |
+| `GET` | `/auth/me` | Returns `{ username, role }` for the current session; `401` when unauthenticated |
 
 ### 7.3 Admin-facing (require auth cookie)
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/admin/api/v1/dashboard` | Dashboard data (bookings of day + pending confirmations) |
-| `GET` | `/admin/api/v1/services` | List all services |
-| `POST` | `/admin/api/v1/services` | Create service |
-| `PUT` | `/admin/api/v1/services/{id}` | Update service |
-| `DELETE` | `/admin/api/v1/services/{id}` | Delete service |
-| `GET` | `/admin/api/v1/sessions/{id}` | Session review page data |
-| `POST` | `/admin/api/v1/sessions/{id}/bookings/{bookingID}/confirm` | Confirm individual booking |
-| `POST` | `/admin/api/v1/sessions/{id}/bookings/{bookingID}/reject` | Reject individual booking |
-| `POST` | `/admin/api/v1/bookings/{id}/noshow` | Mark booking as no-show |
-| `GET` | `/admin/api/v1/settings` | Get general settings |
-| `PUT` | `/admin/api/v1/settings` | Update general settings |
-| `POST` | `/admin/api/v1/settings/tandc` | Upload T&C PDF (`multipart/form-data`) |
-| `GET` | `/admin/api/v1/settings/secret` | Download HMAC secret |
-| `POST` | `/admin/api/v1/settings/secret` | Upload / replace HMAC secret |
+The `Role` column states which role(s) may call the endpoint. The auth middleware
+enforces this at the route level: `staff` routes reject `administrator` sessions
+with `403 Forbidden` and vice versa. Both roles may call `staff | administrator`
+routes.
+
+| Method | Path | Role | Description |
+| --- | --- | --- | --- |
+| `GET` | `/admin/api/v1/dashboard` | `staff` | Dashboard data (bookings of day + pending confirmations) |
+| `GET` | `/admin/api/v1/sessions/{id}` | `staff` | Session review page data |
+| `POST` | `/admin/api/v1/sessions/{id}/bookings/{bookingID}/confirm` | `staff` | Confirm individual booking |
+| `POST` | `/admin/api/v1/sessions/{id}/bookings/{bookingID}/reject` | `staff` | Reject individual booking |
+| `POST` | `/admin/api/v1/bookings/{id}/noshow` | `staff` | Mark booking as no-show |
+| `GET` | `/admin/api/v1/retention/pending` | `staff` | List contacts in `pending_deletion` state |
+| `DELETE` | `/admin/api/v1/retention/pending/{contactID}` | `staff` | Permanently delete a contact and all their bookings |
+| `GET` | `/admin/api/v1/retention/confirm` | — (signed token) | Confirm deletion via e-mail link; token encodes contactID + 7-day expiry |
+| `GET` | `/admin/api/v1/services` | `administrator` | List all services |
+| `POST` | `/admin/api/v1/services` | `administrator` | Create service |
+| `PUT` | `/admin/api/v1/services/{id}` | `administrator` | Update service |
+| `DELETE` | `/admin/api/v1/services/{id}` | `administrator` | Delete service |
+| `GET` | `/admin/api/v1/settings` | `administrator` | Get general settings |
+| `PUT` | `/admin/api/v1/settings` | `administrator` | Update general settings |
+| `POST` | `/admin/api/v1/settings/tandc` | `administrator` | Upload T&C PDF (`multipart/form-data`) |
+| `GET` | `/admin/api/v1/settings/secret` | `administrator` | Download HMAC secret |
+| `POST` | `/admin/api/v1/settings/secret` | `administrator` | Upload / replace HMAC secret |
 
 ### 7.4 Infrastructure
 
@@ -449,13 +517,19 @@ The cookie carries `SameSite=Lax; HttpOnly; Secure` attributes.
 
 Flow:
 
-1. Admin visits `/auth/apple` → redirect to Apple's authorisation endpoint.
+1. User visits `/auth/apple` → the login username typed so far is forwarded as
+   state; redirect to Apple's authorisation endpoint.
 2. Apple redirects to `/auth/apple/callback` with `code` and `id_token`.
 3. `id_token` is validated (signature, `iss`, `aud`, expiry).
-4. `sub` claim is compared to `APPLE_ALLOWED_SUBJECT`; mismatch → `403 Forbidden`.
-5. On match: session cookie is set and admin is redirected to `/admin/`.
+4. `sub` claim is looked up against `User.apple_subject` in the loaded users
+   config; no match → `403 Forbidden`.
+5. Matched user must have `apple_oauth_enabled = true`; otherwise → `403 Forbidden`.
+6. On success: session cookie is set (carrying `userID` and `role`) and the
+   user is redirected to the appropriate landing page (`/admin/` for
+   administrator, `/admin/` for staff).
 
-Environment variables:
+Global environment variables (Apple Sign-In must be configured for any
+per-user `apple_oauth_enabled: true` to take effect):
 
 | Variable | Purpose |
 | --- | --- |
@@ -463,21 +537,40 @@ Environment variables:
 | `APPLE_TEAM_ID` | Apple Team ID |
 | `APPLE_KEY_ID` | Signing key ID |
 | `APPLE_PRIVATE_KEY` | ES256 private key (PEM, from Kubernetes Secret) |
-| `APPLE_ALLOWED_SUBJECT` | Allowed Apple `sub` claim |
 
 ### 9.3 Username / password
 
-- Credential lookup: `ADMIN_USERNAME` + `ADMIN_PASSWORD_HASH` (bcrypt, cost ≥ 12).
-- POST `/auth/login` with `application/x-www-form-urlencoded` body.
-- On success: session cookie as above.
-- Brute-force protection: constant-time compare with `bcrypt.CompareHashAndPassword`.
+- All named users are loaded from the YAML file at `USERS_CONFIG_FILE` path at
+  startup; the parsed entries are written to the store via `DomainStore.SyncUsers`.
+- `POST /auth/login` with `application/x-www-form-urlencoded` body
+  (`username`, `password`).
+- Credential lookup: `GetUserByEmail(username)` → `bcrypt.CompareHashAndPassword`
+  against the stored hash (cost ≥ 12).
+- On success: session cookie set with `userID` and `role`.
+- Brute-force protection: constant-time compare; fixed-duration artificial delay
+  on failure.
 
-### 9.4 Auth middleware
+### 9.4 `/auth/apple/available` discovery endpoint
 
-`middleware.RequireAdmin` is applied to all `/admin/` routes. It reads and
-validates the session cookie; on failure it responds `401 Unauthorized` for
-API requests or redirects to `/auth/login` for browser requests
-(`Accept: text/html`).
+`GET /auth/apple/available?username=<email>` returns
+`{ "apple_enabled": true|false }`. The response is `true` only when:
+
+1. Apple Sign-In env vars (`APPLE_CLIENT_ID`, etc.) are all set, **and**
+2. a user record with that email exists **and** has `apple_oauth_enabled = true`.
+
+To prevent user-enumeration the response is always `200 OK` with
+`{ "apple_enabled": false }` for any unknown email (never `404`).
+
+### 9.5 Auth middleware
+
+Two middleware functions are provided in `internal/middleware`:
+
+- `RequireAuth` — validates the session cookie; responds `401 Unauthorized`
+  for API requests or redirects to `/auth/login` for browser requests.
+  Applied to all `/admin/` routes and to the CalDAV endpoint.
+- `RequireRole(role string)` — checks that the authenticated session's role
+  matches the required role; responds `403 Forbidden` on mismatch. Applied
+  per-route group as described in §7.3.
 
 ---
 
@@ -502,6 +595,9 @@ internal/email/templates/
   cancellation/     subject.txt  body.txt
   admin-notify/     subject.txt  body.txt
   admin-conflict/   subject.txt  body.txt
+  retention-notify/ subject.txt  body.txt  -- sent to all Staff when retention deadline reached
+  billing-invoice/  subject.txt  body.txt  -- sent to all Staff with invoice content
+  reminder/         subject.txt  body.txt  -- sent to Customer reminder_lead_time_days before their confirmed appointment
 ```
 
 ### 10.3 Email types and triggers
@@ -514,6 +610,9 @@ internal/email/templates/
 | `cancellation` | Customer cancels a booking | Customer |
 | `admin-notify` | Customer submits session | Administrator (`ADMIN_EMAIL`) |
 | `admin-conflict` | Timeslot modification / deletion affects active bookings | Administrator |
+| `retention-notify` | Contact's `last_appointment_end_at + retention_period_days ≤ now` and `retention_state = 'active'` | All Staff users (all users with `role = 'staff'`) |
+| `billing-invoice` | Contact's `last_appointment_end_at ≤ now` and `billing_generated = false` | All Staff users |
+| `reminder` | Confirmed booking whose `start_at` is exactly `reminder_lead_time_days` calendar days from today and `reminded_at IS NULL` | Customer |
 
 ### 10.4 `.ics` attachments
 
@@ -549,21 +648,75 @@ token = base64url( bookingID + ":" + timestamp + ":" + HMAC(secret, bookingID + 
 
 ---
 
-## 12. Background Job — Data Retention (`internal/retention`)
+## 12. Background Job — Reminders, Data Retention and Billing (`internal/retention`, `internal/billing`)
+
+A single background goroutine (started by `retention.StartJob`) wakes up daily
+at the time configured by `AUTOMATED_TASKS_RUN_AT` (default `08:00` local server
+time). It performs four sequential passes:
 
 ```go
-// StartJob runs a goroutine that fires once at startup and then
-// every 24 hours, deleting contact and booking data older than
-// DATA_RETENTION_DAYS days.
-func StartJob(ctx context.Context, store DomainStore, retentionDays int)
+func StartJob(ctx context.Context, store DomainStore, email *email.Sender, billing *billing.Service)
 ```
 
-Deletion logic:
+### Pass 0 — Reminder e-mails
 
-1. Compute `cutoff = now() - retentionDays * 24h`.
-2. `DomainStore.DeleteExpiredContacts(ctx, cutoff)` — cascades to
-   `BookingSession` and `Booking` rows via `ON DELETE CASCADE` foreign keys.
-3. Log count of deleted contacts at `klog.V(2)`.
+1. `DomainStore.GetSettings(ctx)` to read current `reminder_lead_time_days`.
+2. `DomainStore.ListBookingsDueReminder(ctx, leadDays)` — confirmed bookings
+   whose `start_at` falls exactly `reminder_lead_time_days` calendar days from
+   today (server local time) and whose `reminded_at` IS NULL.
+3. For each booking: send a `reminder` e-mail to the customer containing the
+   service name, appointment date and time (formatted in server local timezone),
+   appointment location (from Settings), and the management link.
+4. `DomainStore.MarkReminderSent(ctx, bookingID)` on success.
+5. Log count at `klog.V(2)`.
+
+### Pass 1 — Billing
+
+1. `DomainStore.ListBillingDue(ctx)` — contacts where
+   `last_appointment_end_at ≤ now` and `billing_generated = false`.
+2. For each contact: call `billing.GenerateAndSend(ctx, contact)` which:
+   a. `DomainStore.ListBookingsForContact(ctx, contactID)` — all non-cancelled bookings.
+   b. Render invoice as plain text (`DATA_DIR/invoices/yyyy-mm-dd-<LastName>-<FirstName>.txt`).
+   c. Write file to disk.
+   d. Send `billing-invoice` e-mail to all Staff users.
+3. `DomainStore.MarkBillingGenerated(ctx, contactID)` on success.
+4. Log count at `klog.V(2)`.
+
+### Pass 2 — Retention notification
+
+1. `DomainStore.GetSettings(ctx)` to read current `retention_period_days`.
+2. `DomainStore.ListRetentionDue(ctx, retentionPeriod)` — contacts where
+   `last_appointment_end_at + retention_period_days ≤ now` and `retention_state = 'active'`.
+3. For each contact:
+   a. Send `retention-notify` e-mail to all Staff users. The e-mail includes
+      a signed deletion-confirmation link (`/admin/api/v1/retention/confirm?token=…`)
+      valid for **7 days**, signed with the same HMAC infrastructure as management links.
+   b. `DomainStore.MarkRetentionNotified(ctx, contactID)`.
+4. Log count at `klog.V(2)`.
+
+### Pass 3 — Confirmation expiry
+
+1. `DomainStore.ListConfirmationExpired(ctx)` — contacts where
+   `retention_state = 'notified'` and `retention_notified_at + 7 days ≤ now`.
+2. For each contact: `DomainStore.AddToPendingDeletion(ctx, contactID)`.
+3. Log count at `klog.V(2)`.
+
+### Deletion confirmation endpoint
+
+`GET /admin/api/v1/retention/confirm?token=<signed>`
+
+- No session cookie required; the signed token authenticates the action.
+- Token encodes `contactID` + expiry timestamp (7 days from issue), signed with
+  the HMAC secret via `internal/token`.
+- On valid token: `DomainStore.DeleteContact(ctx, contactID)`.
+- On expired / invalid token: `410 Gone` with a human-readable message.
+
+### Cancelled-booking rule
+
+Only non-cancelled bookings (state `reserved` or `confirmed`) contribute to
+`last_appointment_end_at`. If all of a contact's bookings are cancelled,
+`last_appointment_end_at` is `NULL`; the contact is skipped by all retention
+and billing passes until a non-cancelled booking exists.
 
 ---
 
@@ -578,11 +731,12 @@ main()
        memory:   initialise in-process maps + mutex
   4. token.NewSigner(store)                      // load or generate HMAC secret
   5. email.NewSender(cfg)                        // validate SMTP config
-  6. retention.StartJob(ctx, store, cfg.RetentionDays)
-  7. server.NewRouter(cfg, store, signer, sender) // build HTTP mux
-  8. http.Server{}.ListenAndServe()
-  9. wait for SIGINT / SIGTERM
- 10. graceful shutdown with 10-second timeout
+  6. billing.NewService(store, email, cfg.DataDir) // invoice generator + file store
+  7. retention.StartJob(ctx, store, email, billingSvc) // background: billing + retention
+  8. server.NewRouter(cfg, store, signer, sender) // build HTTP mux
+  9. http.Server{}.ListenAndServe()
+ 10. wait for SIGINT / SIGTERM
+ 11. graceful shutdown with 10-second timeout
 ```
 
 ---
@@ -620,15 +774,14 @@ environment variables. Environment variables override flag defaults.
 | `SMTP_FROM_ADDRESS` | — | Sender address |
 | `SMTP_FROM_NAME` | — | Sender display name |
 | `ADMIN_EMAIL` | — | Administrator e-mail (ORGANIZER in ICS) |
-| `ADMIN_USERNAME` | — | Admin username for password login |
-| `ADMIN_PASSWORD_HASH` | — | bcrypt hash of admin password |
-| `APPLE_CLIENT_ID` | — | Apple OAuth client ID |
+| `USERS_CONFIG_FILE` | `/etc/schedio/users.yaml` | Path to the YAML user/role configuration file |
+| `APPLE_CLIENT_ID` | — | Apple OAuth client ID (required for Apple Sign-In) |
 | `APPLE_TEAM_ID` | — | Apple Team ID |
 | `APPLE_KEY_ID` | — | Apple signing key ID |
 | `APPLE_PRIVATE_KEY` | — | ES256 private key (PEM) |
-| `APPLE_ALLOWED_SUBJECT` | — | Permitted Apple `sub` claim |
-| `DATA_DIR` | `/data` | Directory for T&C PDFs (mount PVC here) |
-| `DATA_RETENTION_DAYS` | `30` | Days before contact data is deleted |
+| `DATA_DIR` | `/data` | Directory for T&C PDFs and invoice files (`DATA_DIR/invoices/`) — mount PVC here |
+| `DATA_RETENTION_DAYS` | `30` | Seed value for `Settings.retention_period_days` on first startup only; ignored once the DB row exists |
+| `AUTOMATED_TASKS_RUN_AT` | `08:00` | Time of day (HH:MM, 24-hour, server local time) at which the daily background job runs; applies to all automated tasks (reminders, billing, retention) |
 
 ---
 
@@ -716,16 +869,14 @@ The table below uses the following change codes:
    reads `STORE_BACKEND` and returns the correct implementation.
 2. Call `token.NewSigner(ctx, store)` after the store is initialised.
 3. Call `email.NewSender(cfg)` and validate SMTP reachability.
-4. Call `retention.StartJob(ctx, store, cfg.DataRetentionDays)`.
+4. Call `billing.NewService(store, emailSender, cfg.DataDir)` and `retention.StartJob(ctx, store, emailSender, billingSvc)`.
 5. Pass `store`, `signer`, and `sender` into `server.NewRouter`.
 6. Remove the direct `calstore.NewDummyStore()` / `calstore.NewMemoryStore()` calls
    from `main`; store selection belongs in `store.NewBackend`.
 
-**Do not change:** graceful shutdown logic, klog initialisation, server timeout values.
-
----
-
-### 17.2 `internal/config/config.go` — REFACTOR
+**Changed startup call:** `retention.StartJob(ctx, store, emailSender, billingSvc)` — no
+longer reads `cfg.DataRetentionDays` directly; fetches `retention_period_days` from
+`Settings` at each daily run so admin changes take effect without a restart.
 
 **Current state:**
 Struct fields (all read from flags or a YAML config file today):
@@ -761,16 +912,15 @@ PostgresUser        string  // POSTGRES_USER
 PostgresPassword    string  // POSTGRES_PASSWORD
 PostgresSSLMode     string  // POSTGRES_SSLMODE
 SmtpFromAddress     string  // SMTP_FROM_ADDRESS
-SmtpFromName        string  // SMTP_FROM_NAME
-AdminUsername       string  // ADMIN_USERNAME
-AdminPasswordHash   string  // ADMIN_PASSWORD_HASH
+SenderName          string  // SMTP_SENDER_NAME
+UsersConfigFile     string  // USERS_CONFIG_FILE (default: /etc/schedio/users.yaml)
 AppleClientID       string  // APPLE_CLIENT_ID
 AppleTeamID         string  // APPLE_TEAM_ID
 AppleKeyID          string  // APPLE_KEY_ID
 ApplePrivateKey     string  // APPLE_PRIVATE_KEY
-AppleAllowedSubject string  // APPLE_ALLOWED_SUBJECT
 DataDir             string  // DATA_DIR (default: /data)
-DataRetentionDays   int     // DATA_RETENTION_DAYS (default: 30)
+DataRetentionDays   int     // DATA_RETENTION_DAYS (default: 30) — seeds Settings.retention_period_days on first startup only
+AutomatedTasksRunAt string  // AUTOMATED_TASKS_RUN_AT (default: "08:00") — daily job run time (HH:MM, 24-hour, server local time)
 ```
 
 1. Environment variables are read via `os.Getenv` in `ParseCommandLineArgs`;
@@ -1168,12 +1318,13 @@ every step:
 7. **Token subsystem** — `internal/token`. Unit-tested.
 8. **Auth subsystem** — `internal/auth`. Unit-tested.
 9. **Email subsystem** — `internal/email` with stub SMTP for tests.
-10. **Retention job** — `internal/retention`.
-11. **REST handlers** — customer, then admin, then auth. Each wired into router.
-12. **CalDAV handler refactor** — translate writes to `DomainStore`; update discovery
+10. **Billing service** — `internal/billing` (invoice generation, file write, staff e-mail).
+11. **Retention job** — `internal/retention` (combined billing + retention background goroutine).
+12. **REST handlers** — customer, then admin, then auth. Each wired into router.
+13. **CalDAV handler refactor** — translate writes to `DomainStore`; update discovery
     for per-staff paths. iOS-interoperability tests must continue to pass.
-13. **PostgreSQL backend** — `internal/store/postgres` with migrations.
+14. **PostgreSQL backend** — `internal/store/postgres` with migrations.
     `store.NewBackend` now returns `PostgresStore` when `STORE_BACKEND=postgres`.
-14. **Frontend** — SPA booking flow + admin UI in `web/`.
-15. **OpenAPI spec** — fill out `api/openapi.yaml` to cover all endpoints.
-16. **Integration tests** — end-to-end tests using `MemoryStore` backend.
+15. **Frontend** — SPA booking flow + admin UI in `web/`.
+16. **OpenAPI spec** — fill out `api/openapi.yaml` to cover all endpoints.
+17. **Integration tests** — end-to-end tests using `MemoryStore` backend.

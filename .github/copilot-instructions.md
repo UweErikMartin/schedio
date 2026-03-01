@@ -103,6 +103,65 @@ Before adding a new dependency:
 
 ---
 
+## Requirements change process
+
+Whenever `doc/requirements.md` is modified — or a user request implies a
+requirements change — follow this mandatory sequence before touching any
+implementation or specification file:
+
+### Step 1 — Consistency check
+
+Read the full updated `doc/requirements.md` and cross-check it against:
+
+- `doc/architecture.md`
+- `doc/userinterface.md`
+- `api/openapi.yaml`
+
+For every discrepancy, ambiguity, or missing specification found, create one
+entry in `doc/open_inconsistencies.md` using the next available item number.
+Each entry must state:
+
+- **ID** — e.g. `NI10`
+- **Source** — which document(s) conflict or where the gap is
+- **Description** — what is inconsistent or underspecified
+- **Proposed resolution** — a concrete change that would resolve it
+
+### Step 2 — Resolution
+
+Work through all open items in `doc/open_inconsistencies.md`. For each item:
+
+1. Apply the resolution (updating `requirements.md`, `architecture.md`, or
+   `userinterface.md` as appropriate — **not** implementation files yet).
+2. Move the resolved item from `doc/open_inconsistencies.md` to
+   `doc/resolved_inconsistencies.md`, recording the resolution taken.
+
+Do **not** proceed to Step 3 until `doc/open_inconsistencies.md` is empty.
+
+### Step 3 — Downstream updates
+
+Only after `doc/open_inconsistencies.md` is empty, propagate the approved
+changes to the implementation artefacts in this order:
+
+1. `doc/architecture.md` — update affected sections and the gap analysis.
+2. `doc/userinterface.md` — update affected component specifications and
+   testable behaviours.
+3. `api/openapi.yaml` — add, remove, or update paths, parameters, and schemas.
+4. Implementation files in `internal/`, `cmd/`, `web/` — only after the above
+   three specification documents are consistent and up to date.
+
+### Key files
+
+| File | Purpose |
+| --- | --- |
+| `doc/requirements.md` | Functional requirements (source of truth) |
+| `doc/open_inconsistencies.md` | Items not yet resolved — must be empty before implementation |
+| `doc/resolved_inconsistencies.md` | Full resolution history |
+| `doc/architecture.md` | System architecture derived from requirements |
+| `doc/userinterface.md` | UI component specification derived from requirements |
+| `api/openapi.yaml` | REST API specification derived from requirements |
+
+---
+
 ## CalDAV protocol notes (iOS Calendar / iPadOS interoperability)
 
 This section records hard-won knowledge about the iOS/iPadOS CalDAV client

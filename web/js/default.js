@@ -13,6 +13,7 @@ const hasDateSelectionControls = !!dateInput && !!timeInput && !!datePicker;
 
 let activeYear = 0;
 let activeMonth = 0;
+let activeServiceId = "";
 let preloadedAvailability = null;
 let preloadedAvailabilityResult = null;
 
@@ -21,12 +22,21 @@ const buildMonthKey = (year, month) => {
 };
 
 const loadServices = async () => {
-    const response = await fetch("services");
+    const response = await fetch("api/v1/services");
     if (!response.ok) {
         throw new Error("Behandlungen konnten nicht geladen werden");
     }
     const payload = await response.json();
-    return Array.isArray(payload?.services) ? payload.services : [];
+    const raw = Array.isArray(payload) ? payload : [];
+    // Map API field names to the shape expected by <x-service-picker>.
+    return raw.map((s) => ({
+        uid:             s.id,
+        name:            s.name,
+        summary:         s.summary,
+        details:         s.description,
+        priceEUR:        s.price,
+        durationMinutes: s.duration_minutes,
+    }));
 };
 
 const getAvailabilityEndpoint = () => {
@@ -34,11 +44,12 @@ const getAvailabilityEndpoint = () => {
     return configuredEndpoint || "availability";
 };
 
-const loadAvailability = async (year, month) => {
+const loadAvailability = async (year, month, serviceId) => {
     const monthKey = buildMonthKey(year, month);
     const endpoint = getAvailabilityEndpoint();
     const separator = endpoint.includes("?") ? "&" : "?";
-    const response = await fetch(`${endpoint}${separator}month=${encodeURIComponent(monthKey)}`);
+    const serviceParam = serviceId ? `&service_id=${encodeURIComponent(serviceId)}` : "";
+    const response = await fetch(`${endpoint}${separator}month=${encodeURIComponent(monthKey)}${serviceParam}`);
     if (!response.ok) {
         throw new Error("Verfügbarkeit konnte nicht geladen werden");
     }
@@ -117,11 +128,13 @@ const initializeServices = async () => {
 
     await customElements.whenDefined("x-service-picker");
 
-    const syncSelectedService = (serviceName) => {
+    const syncSelectedService = (serviceId, serviceName) => {
         if (!serviceInput) {
             return;
         }
-        serviceInput.value = serviceName || "";
+        // Store the stable UUID so the backend can reference the service,
+        // not the display name which may change.
+        serviceInput.value = serviceId || "";
     };
 
     const applyServicesToPicker = (services) => {
@@ -130,11 +143,16 @@ const initializeServices = async () => {
         if (typeof servicePicker.setServices === "function") {
             servicePicker.setServices(normalizedServices);
         }
-        syncSelectedService(servicePicker.selectedServiceName || "");
+        const firstUid = normalizedServices[0]?.uid || "";
+        activeServiceId = firstUid;
+        syncSelectedService(firstUid, servicePicker.selectedServiceName || "");
     };
 
     servicePicker.addEventListener("service-change", (event) => {
-    syncSelectedService(event.detail?.serviceName || "");
+    const uid = event.detail?.uid || "";
+    const name = event.detail?.serviceName || "";
+    activeServiceId = uid;
+    syncSelectedService(uid, name);
 
     if (hasDateSelectionControls && activeYear > 0 && activeMonth > 0) {
         fetchAndApplyAvailability({ year: activeYear, month: activeMonth });
@@ -222,7 +240,7 @@ const fetchAndApplyAvailability = async (eventDetail) => {
             availability = preloadedAvailabilityResult || await preloadedAvailability.promise;
         }
         if (!availability) {
-            availability = await loadAvailability(year, month);
+            availability = await loadAvailability(year, month, activeServiceId);
         }
         datePicker.setAttribute("available-dates", JSON.stringify(availability));
     } catch (error) {

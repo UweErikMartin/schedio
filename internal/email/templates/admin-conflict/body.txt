@@ -1,0 +1,8 @@
+Ein Terminkonflikt wurde erkannt.
+
+Betroffener Timeslot: {{.Timeslot.ID}}
+
+Betroffene Buchungen:
+{{range .Conflicts}}  - Buchung {{.ID}} am {{.StartAt.Format "02.01.2006 15:04"}} Uhr
+{{end}}
+Bitte überprüfen und ggf. kunden informieren.

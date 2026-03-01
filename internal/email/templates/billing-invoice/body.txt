@@ -1,0 +1,8 @@
+Eine neue Rechnung wurde erstellt.
+
+Kunde: {{.Contact.FirstName}} {{.Contact.LastName}} <{{.Contact.Email}}>
+Datei: {{.InvoicePath}}
+
+Buchungen:
+{{range .Bookings}}  - {{.StartAt.Format "02.01.2006 15:04"}}: Service {{.ServiceID}}
+{{end}}

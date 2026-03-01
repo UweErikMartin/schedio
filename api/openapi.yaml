@@ -34,6 +34,8 @@ tags:
     description: Admin session review
   - name: admin-settings
     description: Admin settings and file uploads
+  - name: admin-retention
+    description: Data retention pending-deletion list management
 
 paths:
 
@@ -78,37 +80,80 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Service'
+                  $ref: '#/components/schemas/PublicService'
 
   /api/v1/availability:
     get:
       tags: [availability]
-      summary: List available time slots for a service on a given date
+      summary: Query available time slots for a service
+      description: |
+        Returns available start times for the given service, scoped to either
+        a whole month or a single day depending on the format of `period`.
+
+        | `period` value | Format       | Scope                              |
+        |----------------|--------------|------------------------------------|
+        | `YYYY-MM`      | month        | All available days in that month   |
+        | `YYYY-MM-DD`   | day          | A single calendar day              |
+
+        Both variants return the same JSON envelope so callers can use a single
+        response handler:
+
+        ```json
+        {
+          "months": {
+            "2026-03": {
+              "2026-03-15": ["09:00", "09:15", "09:30"],
+              "2026-03-16": ["10:00", "10:30"]
+            }
+          }
+        }
+        ```
+
+        Time strings are `HH:mm` values in UTC. Days with no available slots
+        are omitted.
       parameters:
         - name: service_id
           in: query
           required: true
-          description: ID of the service to query availability for
+          description: ID of the service to query availability for.
           schema:
             type: string
             format: uuid
-        - name: date
+        - name: period
           in: query
           required: true
-          description: Calendar date in ISO-8601 format
+          description: |
+            Time scope to query. Either a calendar month (`YYYY-MM`) or a
+            single calendar day (`YYYY-MM-DD`). The backend detects the format
+            automatically.
           schema:
             type: string
-            format: date
-            example: '2026-03-15'
+            pattern: '^\d{4}-\d{2}(-\d{2})?$'
+            example: '2026-03'
       responses:
         '200':
-          description: List of available time slots; may be empty
+          description: |
+            Availability map. Days with no slots are omitted. The outer key is
+            always a month string (`YYYY-MM`); for a single-day query only the
+            month containing that day is present with exactly one inner key.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/TimeSlot'
+                $ref: '#/components/schemas/AvailabilityResponse'
+              examples:
+                month:
+                  summary: Month query result
+                  value:
+                    months:
+                      "2026-03":
+                        "2026-03-15": ["09:00", "09:15", "09:30", "10:00"]
+                        "2026-03-16": ["10:00", "10:30"]
+                day:
+                  summary: Single-day query result
+                  value:
+                    months:
+                      "2026-03":
+                        "2026-03-15": ["09:00", "09:15", "09:30"]
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -366,25 +411,52 @@ paths:
   /auth/login:
     post:
       tags: [auth]
-      summary: Admin login with username and password
+      summary: Admin login with e-mail address and password
+      description: >
+        Authenticates an admin or staff user. On success a signed `schedio_session`
+        HTTP-only cookie is set and a JSON object with the user's e-mail address
+        and role is returned.
+
+        Unknown e-mail addresses and wrong passwords both return `401` — a
+        deliberate design choice to prevent user-enumeration attacks.
       requestBody:
         required: true
         content:
-          application/x-www-form-urlencoded:
+          application/json:
             schema:
               type: object
-              required: [username, password]
+              required: [email, password]
               properties:
-                username:
+                email:
                   type: string
+                  format: email
+                  example: admin@example.de
                 password:
                   type: string
                   format: password
       responses:
         '200':
           description: Login successful; session cookie is set
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [email, role]
+                properties:
+                  email:
+                    type: string
+                    format: email
+                  role:
+                    type: string
+                    enum: [staff, administrator]
+        '400':
+          description: >
+            Request body is missing, not valid JSON, or required fields
+            (`email`, `password`) are absent.
         '401':
-          description: Invalid credentials
+          description: >
+            Invalid credentials. Returned for both unknown e-mail addresses and
+            wrong passwords to prevent user enumeration.
 
   /auth/logout:
     post:
@@ -401,6 +473,48 @@ paths:
       responses:
         '302':
           description: Redirect to Apple authorisation endpoint
+
+  /auth/apple/available:
+    get:
+      tags: [auth]
+      summary: Check whether Apple Sign-In is available for a given username
+      description: >
+        Always returns HTTP 200 to prevent user enumeration.
+        Unknown usernames or any server error result in `apple_enabled: false`.
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: Apple availability result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [apple_enabled]
+                properties:
+                  apple_enabled:
+                    type: boolean
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Return the current session identity and role
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: Authenticated user info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   # ── Admin API ────────────────────────────────────────────────────────────
 
@@ -703,6 +817,68 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  # ── Retention management (Staff) ──────────────────────────────────────────
+
+  /admin/api/v1/retention/pending:
+    get:
+      tags: [admin-retention]
+      summary: List contacts in the pending-deletion state
+      description: Returns contacts whose deletion-confirmation link expired without being clicked.
+      security:
+        - sessionCookie: []
+      responses:
+        '200':
+          description: List of pending-deletion contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeletionCandidate'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/api/v1/retention/pending/{contactID}:
+    parameters:
+      - name: contactID
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      tags: [admin-retention]
+      summary: Permanently delete a contact and all their bookings
+      security:
+        - sessionCookie: []
+      responses:
+        '204':
+          description: Contact deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/api/v1/retention/confirm:
+    get:
+      tags: [admin-retention]
+      summary: Confirm deletion via e-mail link (no auth cookie required)
+      description: |
+        Validates the signed token from the retention-notification e-mail.
+        On success, permanently deletes the contact. On expired or invalid
+        token, returns 410 Gone.
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Contact deleted successfully
+        '410':
+          description: Token expired or invalid
+
 components:
 
   securitySchemes:
@@ -784,6 +960,40 @@ components:
 
   schemas:
 
+    User:
+      type: object
+      required: [username, role]
+      properties:
+        username:
+          type: string
+          format: email
+          description: User's email address (login identifier)
+        role:
+          type: string
+          enum: [staff, administrator]
+          description: User's assigned role
+
+    DeletionCandidate:
+      type: object
+      required: [id, first_name, last_name, email, phone, retention_deadline_date]
+      properties:
+        id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        retention_deadline_date:
+          type: string
+          format: date
+          description: Date when the retention deadline was originally reached
+
     Error:
       type: object
       required: [error]
@@ -792,9 +1002,37 @@ components:
           type: string
           description: Human-readable error message
 
+    PublicService:
+      type: object
+      description: Service as returned by the public API (daily_limit is omitted)
+      required: [id, name, summary, description, price, duration_minutes]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Beratungsgespr\u00e4ch
+        summary:
+          type: string
+          description: Short one-line description shown in the service selection list
+          example: Narben- und Bindegewebsbehandlung
+        description:
+          type: string
+          description: Full-length description shown in the service detail view
+        price:
+          type: number
+          format: double
+          minimum: 0
+          example: 49.50
+        duration_minutes:
+          type: integer
+          minimum: 1
+          example: 60
+
     Service:
       type: object
-      required: [id, name, description, price, duration_minutes, daily_limit]
+      required: [id, name, summary, description, price, duration_minutes, daily_limit]
       properties:
         id:
           type: string
@@ -802,8 +1040,13 @@ components:
         name:
           type: string
           example: Beratungsgespräch
+        summary:
+          type: string
+          description: Short one-line description shown in the service selection list
+          example: Narben- und Bindegewebsbehandlung
         description:
           type: string
+          description: Full-length description shown in the service detail view
         price:
           type: number
           format: double
@@ -821,12 +1064,16 @@ components:
 
     ServiceInput:
       type: object
-      required: [name, description, price, duration_minutes]
+      required: [name, summary, description, price, duration_minutes]
       properties:
         name:
           type: string
+        summary:
+          type: string
+          description: Short one-line description shown in the service selection list
         description:
           type: string
+          description: Full-length description shown in the service detail view
         price:
           type: number
           format: double
@@ -838,6 +1085,32 @@ components:
           type: integer
           minimum: 0
           default: 0
+
+    AvailabilityResponse:
+      type: object
+      description: |
+        Availability envelope returned by `GET /api/v1/availability`.
+        The outer key is always a month string (`YYYY-MM`). For a month query
+        all days with available slots appear as inner keys; for a day query
+        only the one requested day is present.
+      required: [months]
+      properties:
+        months:
+          type: object
+          description: |
+            Map of month (`YYYY-MM`) → day map.
+          additionalProperties:
+            type: object
+            description: |
+              Map of ISO-8601 date (`YYYY-MM-DD`) → list of available start
+              times in `HH:mm` (local business timezone). Days with no
+              available slots are omitted entirely.
+            additionalProperties:
+              type: array
+              items:
+                type: string
+                pattern: '^\d{2}:\d{2}$'
+                example: '09:15'
 
     TimeSlot:
       type: object
@@ -854,11 +1127,14 @@ components:
 
     Contact:
       type: object
-      required: [name, email, phone]
+      required: [first_name, last_name, email, phone]
       properties:
-        name:
+        first_name:
           type: string
-          example: Erika Mustermann
+          example: Erika
+        last_name:
+          type: string
+          example: Mustermann
         email:
           type: string
           format: email
@@ -901,7 +1177,7 @@ components:
 
     SubmitResponse:
       type: object
-      required: [session_id, bookings]
+      required: [session_id, bookings, email_sent]
       properties:
         session_id:
           type: string
@@ -910,6 +1186,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/BookingLine'
+        email_sent:
+          type: boolean
+          description: >
+            True when the confirmation e-mail was successfully delivered to the
+            customer's address. False when SMTP is not configured or delivery
+            failed.
+        email_error:
+          type: string
+          description: >
+            Human-readable error message (in German) when email_sent is false
+            and a send was attempted. Absent when SMTP is not configured.
 
     Booking:
       type: object
@@ -1001,12 +1288,26 @@ components:
 
     Settings:
       type: object
-      required: [no_show_deadline_hours, currency, appointment_location]
+      required: [no_show_deadline_hours, currency, appointment_location, retention_period_days, reminder_lead_time_days, sender_name]
       properties:
         no_show_deadline_hours:
           type: integer
           minimum: 0
           example: 24
+        retention_period_days:
+          type: integer
+          minimum: 1
+          description: Days after last appointment completion before retention notification is sent
+          example: 30
+        reminder_lead_time_days:
+          type: integer
+          minimum: 1
+          description: Days before an appointment at which the reminder e-mail is automatically sent to the customer
+          example: 1
+        sender_name:
+          type: string
+          description: Display name shown in the From field of all customer-facing e-mails
+          example: Mein Buchungssystem
         currency:
           type: string
           example: EUR
@@ -1024,6 +1325,15 @@ components:
         no_show_deadline_hours:
           type: integer
           minimum: 0
+        retention_period_days:
+          type: integer
+          minimum: 1
+        reminder_lead_time_days:
+          type: integer
+          minimum: 1
+        sender_name:
+          type: string
+          description: Display name shown in the From field of all customer-facing e-mails
         currency:
           type: string
         appointment_location:

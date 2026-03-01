@@ -53,3 +53,184 @@ The resolutions are incorporated into `requirements.md`.
 - **[M23]** — Default `DATA_RETENTION_DAYS` = **30** days. M18 updated.
 - **[M24]** — "Add another timeslot" from the management page creates a new independent session, pre-filled with the original contact data and service, and goes through the full booking flow including admin confirmation.
 - **[M25]** — No-show state is set **manually by the administrator** via the admin UI (e.g. a button on the Bookings of the Day panel or the session detail page). No automatic background transition is performed. M4 updated accordingly.
+
+---
+
+## User and Role Management â€” Resolved Inconsistencies (NI10â€“NI16)
+
+Opened 2026-03-01 after addition of requirements.md Â§4 User and Role Management.
+All resolved 2026-03-01.
+
+- **[NI10]** â€” Removed ADMIN_USERNAME and ADMIN_PASSWORD_HASH env vars.
+  All users (staff and administrators) are defined in a YAML config file.
+  rchitecture.md updated to reference USERS_CONFIG_FILE env var.
+  internal/auth package loads the file at startup and calls DomainStore.SyncUsers.
+
+- **[NI11]** â€” Staff entity renamed to User in rchitecture.md Â§6.1.
+  Added fields: email TEXT NOT NULL UNIQUE (login identifier / CalDAV principal name),
+  
+ole TEXT NOT NULL (staff | dministrator),
+  pple_oauth_enabled BOOLEAN NOT NULL DEFAULT FALSE, pple_subject TEXT.
+  identifier field removed; email serves as the unique login identifier.
+  All FK references updated from staff_id FK->Staff to user_id FK->User.
+
+- **[NI12]** â€” Removed APPLE_ALLOWED_SUBJECT global env var.
+  Apple Sign-In subject matching is now per-user via User.apple_subject field.
+  rchitecture.md Â§9.2 updated accordingly.
+
+- **[NI13]** â€” Added SyncUsers(ctx, users []*User) error and
+  GetUserByEmail(ctx, email string) (*User, error) to DomainStore in
+  rchitecture.md Â§5.2. User config loading in internal/auth calls
+  SyncUsers at server startup before requests are served.
+
+- **[NI14]** â€” Added Role column to rchitecture.md Â§7.3 admin route table.
+  Dashboard and session-review routes require role staff.
+  Services and settings routes require role dministrator.
+  Auth middleware updated to RequireAuth + RequireRole(role) pattern.
+
+- **[NI15]** â€" Removed pple-enabled boolean attribute from `<x-login-form>`.
+  Login form now always renders both password input and a (disabled) "Anmelden
+  mit Apple" button. On username field blur/Enter with a non-empty value, the
+  form calls GET /auth/apple/available?username={encoded-email}; if the
+  response is { "apple_enabled": true } the button is enabled.
+  userinterface.md Â§8.4 updated with 14 testable behaviours.
+  pi/openapi.yaml updated with GET /auth/apple/available endpoint.
+
+- **[NI16]** â€” Added GET /auth/me endpoint returning { username, role } for
+  the authenticated session. rchitecture.md Â§7.2 and pi/openapi.yaml
+  updated. User schema added to pi/openapi.yaml components/schemas.
+
+---
+
+## Data Retention and Billing -- Resolved Inconsistencies (NI17-NI26)
+
+Opened 2026-03-01 after addition of requirements.md Data Retention (SS5) and Billing (SS6).
+All resolved 2026-03-01.
+
+- **[NI17]** -- Retention flow redesigned from silent deletion to email-confirmation workflow.
+  architecture.md SS12 replaced with four-pass daily goroutine: (1) billing pass,
+  (2) retention-notify pass (sends email to all Staff with 7-day signed confirmation link),
+  (3) confirmation-expiry pass (escalates to pending_deletion after 7 days),
+  (4) no automatic deletions. DomainStore.DeleteExpiredContacts removed;
+  replaced by NotifyRetentionDue, MarkRetentionNotified, ListConfirmationExpired,
+  AddToPendingDeletion, ListPendingDeletion, DeleteContact, ListBillingDue,
+  MarkBillingGenerated, ListBookingsForContact.
+
+- **[NI18]** -- Added retention_state (TEXT NOT NULL DEFAULT 'active', values: active/notified/pending_deletion)
+  and retention_notified_at (TIMESTAMPTZ) fields to the Contact entity in architecture.md SS6.1.
+
+- **[NI19]** -- Added retention_period_days (INTEGER NOT NULL DEFAULT 30) to the Settings entity
+  in architecture.md SS6.1. Added retention_period_days to Settings and SettingsInput schemas
+  in api/openapi.yaml. DATA_RETENTION_DAYS env-var is now a seed value for first startup only.
+  userinterface.md SS8.8.1 settings form updated to include "Aufbewahrungsfrist (Tage)" field.
+
+- **[NI20]** -- Renamed last_booking_at -> last_appointment_end_at on Contact entity.
+  Renamed store method UpdateContactLastBooking -> UpdateContactLastAppointment.
+  Retention/billing trigger now uses appointment end time (start_at + duration) rather
+  than booking creation time.
+
+- **[NI21]** -- Added three retention API endpoints to architecture.md SS7.3 and api/openapi.yaml:
+  GET /admin/api/v1/retention/pending (staff), DELETE /admin/api/v1/retention/pending/{contactID} (staff),
+  GET /admin/api/v1/retention/confirm?token= (signed token, no auth cookie required; 410 on expiry).
+  Added DeletionCandidate schema and admin-retention tag to openapi.yaml.
+
+- **[NI22]** -- Added x-retention-list component to userinterface.md SS8.9 with 10 testable behaviours.
+  Updated x-admin-nav to include "Datenloesung" link (active value: 'retention').
+  Added 'retention' route to x-admin-app routing table.
+  Added x-retention-list.js to the component file listing.
+
+- **[NI23]** -- Replaced Contact.name (single field) with first_name and last_name fields throughout:
+  architecture.md SS6.1 Contact entity updated.
+  api/openapi.yaml Contact schema updated (first_name, last_name; example split).
+  DeletionCandidate schema uses first_name/last_name.
+  userinterface.md SS5.9 x-contact-form updated (Vorname/Nachname inputs, 4-field form).
+  userinterface.md SS9.3 contact JSON shape updated.
+  userinterface.md SS11.3 contact form grid updated.
+  x-session-summary testable behaviour updated.
+
+- **[NI24]** -- Added internal/billing package to architecture.md SS4 new-packages table.
+  Invoice format resolved as plain text (.txt). Storage path: DATA_DIR/invoices/yyyy-mm-dd-LastName-FirstName.txt.
+  SS12 documents billing.GenerateAndSend flow (file write + Staff email).
+  architecture.md SS14.2 DATA_DIR description updated to mention invoices/ subdirectory.
+
+- **[NI25]** -- Added retention-notify and billing-invoice email types to architecture.md SS10.2
+  (template directories) and SS10.3 (email types table). Recipients for both: all Staff users.
+
+- **[NI26]** -- Added billing_generated (BOOLEAN NOT NULL DEFAULT FALSE) to Contact entity.
+  Defined restart rules: billing_generated and retention_state reset when last_appointment_end_at
+  moves forward. Cancelled-booking rule documented: only non-cancelled bookings contribute to
+  last_appointment_end_at. Background job billing pass uses billing_generated flag to avoid
+  duplicate invoice generation.
+
+---
+
+## Automated Tasks / Reminder E-Mail -- Resolved Inconsistencies (NI27-NI30)
+
+Opened 2026-03-01 after addition of `requirements.md` §2 (Reminder Lead Time setting)
+and §5 (Automated Tasks -- Reminder E-Mail).
+All resolved 2026-03-01.
+
+- **[NI27]** -- Added `reminder_lead_time_days` (integer, minimum 1, example 1) to the
+  `Settings` component schema in `api/openapi.yaml`, including it in the `required` array.
+  Added the same field (without example) to the `SettingsInput` schema.
+
+- **[NI28]** -- Updated `<x-settings-form>` in `doc/userinterface.md` §8.8.1:
+  Component description extended to include "reminder lead time".
+  Behaviour #2 updated to list "Erinnerungsfrist (Tage)" among rendered fields.
+  New testable behaviour added: "Reminder lead time is a positive integer input
+  (default 1); labelled 'Erinnerungsfrist (Tage)'."
+
+- **[NI29]** -- Updated the Settings JSON shape in `doc/userinterface.md` §9.6 to
+  include both `"retention_period_days": 30` (missing since NI19) and
+  `"reminder_lead_time_days": 1` (new). Also corrected the mojibake in the
+  `appointment_location` example value.
+
+- **[NI30]** -- Updated `doc/architecture.md` in seven locations:
+  (1) Component tree (§3): added `AUTOMATED_TASKS_RUN_AT` scheduling note to
+      `retention.StartJob()` comment.
+  (2) New packages table (§4): updated `internal/retention` description to include
+      reminder pass (Pass 0) and reference `AUTOMATED_TASKS_RUN_AT`.
+  (3) DomainStore interface (§5.2): added `ListBookingsDueReminder(ctx, leadDays int)`
+      and `MarkReminderSent(ctx, bookingID string)` methods.
+  (4) Booking entity (§6.1): added `reminded_at TIMESTAMPTZ` column (nullable;
+      set when reminder e-mail is sent).
+  (5) Settings entity (§6.1): added `reminder_lead_time_days INTEGER NOT NULL DEFAULT 1`.
+  (6) Background job section (§12): renamed section to include "Reminders"; changed
+      from "every 24 hours" to `AUTOMATED_TASKS_RUN_AT` scheduling; added Pass 0
+      (Reminder e-mails) with full store-call and email-send specification; updated
+      pass count from five to four (Passes 0--3).
+  (7) Environment variables (§14): added `AUTOMATED_TASKS_RUN_AT` (default `08:00`,
+      HH:MM 24-hour server local time).
+  Additionally: added `reminder/` template directory to §10.2 and `reminder`
+  email type/trigger/recipient row to §10.3 email types table.
+  Added `AutomatedTasksRunAt string` field to the config struct in §17.2.
+
+---
+
+## Sender Name (Absender-Name) — Resolved Inconsistency (NI31)
+
+Opened and resolved 2026-03-01 after user request to make the e-mail From
+display name configurable in the admin settings UI.
+
+- **[NI31]** -- Added `sender_name` / `SenderName` across all layers:
+  - `requirements.md` §2 (General Settings): added **Absender-Name (Sender Name)**
+    bullet explaining the default value, the startup flag, and the admin UI behaviour.
+  - `doc/architecture.md` §6.1 Settings entity: added `sender_name TEXT NOT NULL DEFAULT 'Schedio Buchungssystem'`.
+  - `api/openapi.yaml`: added `sender_name` to `Settings` schema (required) and
+    `SettingsInput` schema (optional).
+  - `doc/userinterface.md` §8.8.1: added "Absender-Name" to component description,
+    field list, and a new testable behaviour. §9.6 JSON example updated.
+  - `internal/store/model_domain.go`: added `SenderName string` (and `ReminderLeadTimeDays int`)
+    to `Settings` struct.
+  - `internal/store/memory.go`: seeded `SenderName: "Schedio Buchungssystem"` and
+    `ReminderLeadTimeDays: 1` in `NewMemoryStore` defaults.
+  - `internal/email/sender.go`: added `sync.RWMutex` + `fromNameOverride string` fields,
+    `SetFromName(name string)` method, and `resolveFromName()` used in `send()`. The
+    override takes effect immediately for all subsequent sends without a restart.
+  - `internal/handlers/admin/settings.go`: implemented `SettingsHandler` with `Get`
+    (GET /admin/api/v1/settings) and `Put` (PUT /admin/api/v1/settings) handlers.
+    PUT propagates `sender_name` changes to the `email.Sender` via `SetFromName`.
+  - `internal/server/router.go`: imports `admin` package; seeds `SenderName` in the
+    store from `args.SenderName` (`--smtpSenderName`) at startup if not already set; synchronises the
+    stored value into the email sender; registers GET and PUT routes for
+    `/admin/api/v1/settings`.
