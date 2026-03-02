@@ -1,9 +1,0 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
-  <s:sabredav-version>4.7.0</s:sabredav-version>
-  <s:exception>Sabre\DAV\Exception\BadRequest</s:exception>
-  <s:message>String not started expecting ' or "
- on line 1, column 15</s:message>
-</d:error>
-
-HTTP_STATUS:400

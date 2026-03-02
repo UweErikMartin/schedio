@@ -66,4 +66,4 @@ jobs:
         helm registry login ghcr.io \
           --username ${{github.actor}} \
           --password ${{secrets.GITHUB_TOKEN}}
-        helm push /tmp/schedio-${{env.VERSION}}.tgz oci://ghcr.io/${OWNER}
+        helm push /tmp/schedio-${{env.VERSION}}.tgz oci://ghcr.io/${OWNER}/charts
