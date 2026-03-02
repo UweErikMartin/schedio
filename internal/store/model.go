@@ -17,22 +17,27 @@ type Calendar struct {
 
 // Event is the internal representation of a calendar event (VEVENT).
 type Event struct {
-	ID          string    // Globally unique identifier – mapped to iCal UID
-	CalendarID  string    // ID of the owning Calendar
-	Summary     string    // iCal SUMMARY
-	Description string    // iCal DESCRIPTION
-	Location    string    // iCal LOCATION
-	Start       time.Time // iCal DTSTART (always stored in UTC)
-	End         time.Time // iCal DTEND   (always stored in UTC)
-	AllDay      bool      // when true DTSTART/DTEND use DATE not DATE-TIME
-	Opacity     EventOpacity
-	Status      EventStatus
-	Organizer   Attendee
-	Attendees   []Attendee
-	Created     time.Time // iCal CREATED
-	Modified    time.Time // iCal LAST-MODIFIED
-	Sequence    int       // iCal SEQUENCE – increment on every update
-	ETag        string    // opaque version token for conditional PUT / DELETE
+	ID           string    // Globally unique identifier – mapped to iCal UID
+	CalendarID   string    // ID of the owning Calendar
+	Summary      string    // iCal SUMMARY
+	Description  string    // iCal DESCRIPTION
+	Location     string    // iCal LOCATION
+	Start        time.Time // iCal DTSTART (always stored in UTC)
+	End          time.Time // iCal DTEND   (always stored in UTC)
+	AllDay       bool      // when true DTSTART/DTEND use DATE not DATE-TIME
+	Opacity      EventOpacity
+	Status       EventStatus
+	Organizer    Attendee
+	Attendees    []Attendee
+	Created      time.Time // iCal CREATED
+	Modified     time.Time // iCal LAST-MODIFIED
+	Sequence     int       // iCal SEQUENCE – increment on every update
+	ETag         string    // opaque version token for conditional PUT / DELETE
+	// RRule holds the raw iCal RRULE value (e.g. "FREQ=WEEKLY;BYDAY=MO,WE,FR")
+	// for recurring events.  Empty for non-recurring events.
+	RRule        string
+	// RecurrenceID is non-zero for override instances of a recurring series.
+	RecurrenceID time.Time
 }
 
 // EventStatus mirrors the iCal STATUS property values for VEVENT.

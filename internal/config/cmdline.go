@@ -53,6 +53,7 @@ func ParseCommandLineArgs(args []string) Config {
 	flags.StringVar(&params.CalendarPassword, "calendarPassword", "", "The password for the CalDAV calendar")
 	flags.IntVar(&params.Verbose, "verbose", 0, "Enable verbose logging. Set to 1 for info, 2 for debug, etc.")
 	flags.BoolVar(&params.Dummy, "dummy", false, "Initialise the CalDAV backend with the built-in dummy store (read-only, pre-populated with sample events).")
+	flags.BoolVar(&params.NoAuth, "noauth", false, "Disable HTTP Basic Auth on all CalDAV endpoints (dev only — use with HTTP when iOS refuses to send credentials over plain HTTP).")
 	flags.StringVar(&params.ServicesFile, "servicesFile", "", "Path to a YAML file containing the list of bookable services (see config/services.yaml for the format).")
 	flags.StringVar(&params.UsersFile, "usersFile", "", "Path to a YAML file containing admin/staff user accounts (see config/users.yaml for the format).")
 	flags.StringVar(&params.AvailabilityFile, "availabilityFile", "", "Path to a YAML file containing staff timeslots for testing (see config/availability.yaml for the format).")

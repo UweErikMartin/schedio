@@ -323,6 +323,15 @@ func (a *storeAdapter) eventToObject(e *calstore.Event) extcaldav.CalendarObject
 	seqProp.Value = strconv.Itoa(e.Sequence)
 	vevent.Props.Set(seqProp)
 
+	if e.RRule != "" {
+		rrProp := ical.NewProp(ical.PropRecurrenceRule)
+		rrProp.Value = e.RRule
+		vevent.Props.Set(rrProp)
+	}
+	if !e.RecurrenceID.IsZero() {
+		vevent.Props.SetDateTime(ical.PropRecurrenceID, e.RecurrenceID)
+	}
+
 	if e.Organizer.Email != "" {
 		prop := ical.NewProp(ical.PropOrganizer)
 		prop.Value = "mailto:" + e.Organizer.Email
@@ -408,6 +417,12 @@ func (a *storeAdapter) icalToEvent(calID, fallbackEventID string, cal *ical.Cale
 	}
 	if seq := iev.Props.Get(ical.PropSequence); seq != nil {
 		e.Sequence, _ = seq.Int()
+	}
+	if rrule := iev.Props.Get(ical.PropRecurrenceRule); rrule != nil {
+		e.RRule = rrule.Value
+	}
+	if recID := iev.Props.Get(ical.PropRecurrenceID); recID != nil {
+		e.RecurrenceID, _ = recID.DateTime(time.UTC)
 	}
 
 	return e, nil

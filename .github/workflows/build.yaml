@@ -52,3 +52,18 @@ jobs:
         push: true
         file: ./Dockerfile
         tags: ghcr.io/${{env.IMAGENAME}}:${{env.VERSION}}
+
+    - name: Install Helm
+      uses: azure/setup-helm@v4
+
+    - name: Package and push Helm chart
+      run: |
+        OWNER=$(echo '${{github.repository_owner}}' | tr '[:upper:]' '[:lower:]')
+        helm package ./deploy/helm/schedio \
+          --version ${{env.VERSION}} \
+          --app-version ${{env.VERSION}} \
+          --destination /tmp
+        helm registry login ghcr.io \
+          --username ${{github.actor}} \
+          --password ${{secrets.GITHUB_TOKEN}}
+        helm push /tmp/schedio-${{env.VERSION}}.tgz oci://ghcr.io/${OWNER}

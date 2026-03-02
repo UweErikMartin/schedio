@@ -41,6 +41,9 @@ func (s *availStub) ListTimeslots(_ context.Context, userID string, start, end t
 	}
 	return nil, nil
 }
+func (s *availStub) ListRawTimeslots(_ context.Context, _ string) ([]*store.Timeslot, error) {
+	return nil, nil
+}
 func (s *availStub) ListBookingsForDay(_ context.Context, date time.Time) ([]*store.Booking, error) {
 	if s.listBookingsForDay != nil {
 		return s.listBookingsForDay(date)

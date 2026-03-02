@@ -11,7 +11,7 @@ import (
 
 func newDiscoveryTestMux(rootPath string) http.Handler {
 	discovery := NewDiscoveryHandler(rootPath)
-	caldavHandler := NewHandler(calstore.NewDummyStore(), rootPath)
+	caldavHandler := newTestCaldavHandler(calstore.NewDummyStore(), rootPath)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/.well-known/caldav", discovery.WellKnownHandler)
@@ -342,7 +342,7 @@ func TestPrincipalExposesCalendarUserType(t *testing.T) {
 // schedule-default-calendar-URL element is simply omitted rather than emitting
 // an empty href, which could confuse clients.
 func TestPrincipalScheduleDefaultCalendarURLEmptyStore(t *testing.T) {
-	handler := NewHandler(calstore.NewMemoryStore(), "")
+	handler := newTestCaldavHandler(calstore.NewMemoryStore(), "")
 	req := httptest.NewRequest("PROPFIND", "http://example.com/caldav/user/", nil)
 	req.Header.Set("Depth", "0")
 	rec := httptest.NewRecorder()

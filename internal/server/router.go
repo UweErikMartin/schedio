@@ -25,12 +25,13 @@ func NewRouter(args *config.Config, calStore calstore.CalendarStore, domainStore
 	// Auth routes
 	signingKey, _ := auth.GenerateSigningKey()
 	sessions := auth.NewSessionManager(signingKey, false)
-	authH := authhandler.NewHandler(sessions, auth.NewAuthenticator(domainStore), domainStore)
+	authenticator := auth.NewAuthenticator(domainStore)
+	authH := authhandler.NewHandler(sessions, authenticator, domainStore)
 	mux.HandleFunc("POST "+args.RootPath+"/auth/login", authH.Login)
 	mux.HandleFunc("POST "+args.RootPath+"/auth/logout", authH.Logout)
 
 	discovery := caldav.NewDiscoveryHandler(args.RootPath)
-	caldavHandler := caldav.NewHandler(calStore, args.RootPath)
+	caldavHandler := caldav.NewHandler(calStore, domainStore, authenticator, args.RootPath, args.NoAuth)
 
 	// RFC 6764 §5 – well-known redirect: clients probe this first.
 	mux.HandleFunc("/.well-known/caldav", discovery.WellKnownHandler)
@@ -41,7 +42,13 @@ func NewRouter(args *config.Config, calStore calstore.CalendarStore, domainStore
 	})
 
 	// Principal URL – returns calendar-home-set so clients find the calendars.
-	mux.HandleFunc(args.RootPath+"/principals/", discovery.PrincipalsHandler)
+	// When -noauth is active (e.g. for plain-HTTP iOS testing) the auth wrapper
+	// is skipped so iOS can discover the principal without credentials.
+	principalHandler := http.Handler(http.HandlerFunc(discovery.PrincipalsHandler))
+	if !args.NoAuth {
+		principalHandler = caldav.BasicAuthMiddleware(authenticator, principalHandler)
+	}
+	mux.Handle(args.RootPath+"/principals/", principalHandler)
 
 	mux.HandleFunc(args.RootPath+"/healthz", handlers.HandleHealthz)
 	mux.Handle(args.RootPath+"/api/v1/services", handlers.NewServicesHandler(args))
@@ -99,11 +106,30 @@ func NewRouter(args *config.Config, calStore calstore.CalendarStore, domainStore
 
 	// Root handler: intercept PROPFIND for discovery step 2, pass everything
 	// else through to the web UI.
+	// PROPFIND on "/" is wrapped in Basic Auth so iOS is forced to authenticate
+	// here before learning the current-user-principal href. This ensures
+	// credentials are stored in the iOS keychain during account setup.
+	// Non-PROPFIND requests (GET for web UI) bypass auth entirely.
 	webHandler := http.Handler(http.HandlerFunc(handlers.HandleWebUserInterface))
 	if args.RootPath != "" {
 		webHandler = http.StripPrefix(args.RootPath, webHandler)
 	}
-	mux.Handle(args.RootPath+"/", discovery.RootPropfindHandler(webHandler))
+	rootDiscovery := discovery.RootPropfindHandler(webHandler)
+	// When -noauth is set, PROPFIND / is served unauthenticated so that iOS
+	// can discover the server over plain HTTP without sending credentials.
+	var authedRootDiscovery http.Handler
+	if args.NoAuth {
+		authedRootDiscovery = rootDiscovery
+	} else {
+		authedRootDiscovery = caldav.BasicAuthMiddleware(authenticator, rootDiscovery)
+	}
+	mux.Handle(args.RootPath+"/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PROPFIND" {
+			authedRootDiscovery.ServeHTTP(w, r)
+			return
+		}
+		rootDiscovery.ServeHTTP(w, r)
+	}))
 
 	return mux
 }

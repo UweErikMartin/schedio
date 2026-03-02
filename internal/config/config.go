@@ -91,7 +91,11 @@ type Config struct {
 	CalendarPassword string          `yaml:"calendarPassword"`
 	Verbose          int             `yaml:"verbose"`
 	Dummy            bool            `yaml:"dummy"`
-	ConfigFile       string          `yaml:"-"`
+	// NoAuth disables all HTTP Basic Auth checks on CalDAV endpoints.
+	// Intended for local development only when the client (e.g. iOS) refuses
+	// to send credentials over plain HTTP.  Never enable in production.
+	NoAuth      bool   `yaml:"noAuth"`
+	ConfigFile  string `yaml:"-"`
 	ServicesFile     string          `yaml:"servicesFile"`
 	Services         []ServiceEntry  `yaml:"-"`
 	UsersFile        string          `yaml:"usersFile"`

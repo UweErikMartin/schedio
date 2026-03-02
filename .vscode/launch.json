@@ -1,0 +1,25 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "schedio: debug CalDAV (verbose)",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/schedio",
+            "args": [
+                "-port=80",
+                "-bindAddress=0.0.0.0",
+                "-usersFile=${workspaceFolder}/config/users.yaml",
+                "-servicesFile=${workspaceFolder}/config/services.yaml",
+                "-availabilityFile=${workspaceFolder}/config/availability.yaml",
+                "-verbose=3"
+            ],
+            "env": {},
+            "console": "integratedTerminal",
+            "asRoot": false,
+            "preLaunchTask": "kill-schedio",
+            "postDebugTask": "kill-schedio"
+        }
+    ]
+}

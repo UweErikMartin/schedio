@@ -1,0 +1,13 @@
+apiVersion: v2
+name: schedio
+description: A Helm chart for schedio – a CalDAV / booking web-service
+type: application
+version: 0.0.1
+appVersion: "0.0.1"
+keywords:
+  - caldav
+  - booking
+  - calendar
+home: https://github.com/schedio/schedio
+sources:
+  - https://github.com/schedio/schedio

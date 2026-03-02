@@ -32,6 +32,10 @@ go.work.sum
 # local configuration files
 config/
 
+#container pull secret
+deploy/secrets/
+pull-secret.yaml
+
 # Editor/IDE
 # .idea/
 # .vscode/

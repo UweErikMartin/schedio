@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<d:error xmlns:d="DAV:" xmlns:s="http://sabredav.org/ns">
+  <s:sabredav-version>4.7.0</s:sabredav-version>
+  <s:exception>Sabre\DAV\Exception\NotAuthenticated</s:exception>
+  <s:message>No 'Authorization: Digest' header found. Either the client didn't send one, or the server is misconfigured. Login was needed for privilege: {DAV:}read on </s:message>
+</d:error>

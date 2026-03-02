@@ -119,7 +119,16 @@ type DomainStore interface {
 
 	// ListTimeslots returns all Timeslots for the given staff user whose time
 	// window overlaps [start, end]. Zero start/end means no bound.
+	// Recurring timeslots are expanded into individual occurrences within the
+	// requested range – use this for availability / booking decisions.
 	ListTimeslots(ctx context.Context, userID string, start, end time.Time) ([]*Timeslot, error)
+
+	// ListRawTimeslots returns the raw, unexpanded Timeslot records for
+	// userID – one entry per CalDAVUID with the RRule field intact.
+	// Unlike ListTimeslots, recurring timeslots are NOT expanded.
+	// This is intended for the CalDAV layer, which sends RRULE VEVENTs to
+	// calendar clients and lets the client expand them.
+	ListRawTimeslots(ctx context.Context, userID string) ([]*Timeslot, error)
 
 	// GetTimeslot returns the Timeslot identified by its CalDAV UID. Returns
 	// ErrNotFound when the UID does not exist or belongs to a different user.

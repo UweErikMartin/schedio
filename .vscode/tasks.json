@@ -2,6 +2,16 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "kill-schedio",
+			"type": "shell",
+			"command": "Stop-Process -Name 'schedio' -Force -ErrorAction SilentlyContinue; Write-Host 'schedio stopped (or was not running)'",
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared"
+			},
+			"problemMatcher": []
+		},
+		{
 			"label": "build-${workspaceFolderBasename}-exe",
 			"type": "shell",
 			"command": "go",
@@ -15,6 +25,57 @@
 				"kind": "build",
 				"isDefault": true
 			}
+		},
+		{
+			"label": "deploy: start k8s cluster and verify",
+			"type": "shell",
+			"command": "wsl -d Kubernetes -- sudo dbus-launch true ; kubectl cluster-info ; kubectl apply -f ./deploy/secrets/pull-secret.yaml",
+			"options": {
+				"env": {
+					"KUBECONFIG": "\\\\wsl.localhost\\Kubernetes\\home\\ubuntu\\.kube\\config"
+				}
+			},
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"focus": true
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "deploy: helm upgrade --install schedio",
+			"type": "shell",
+			"command": "wsl -d Kubernetes -- sudo dbus-launch true ; helm upgrade --install schedio ./deploy/helm/schedio --set 'imagePullSecrets[0].name=ghcr-secret' --set hostNetwork=true --wait",
+			"options": {
+				"env": {
+					"KUBECONFIG": "\\\\wsl.localhost\\Kubernetes\\home\\ubuntu\\.kube\\config"
+				}
+			},
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"focus": true
+			},
+			"problemMatcher": []
+		},
+		{
+			"label": "deploy: helm uninstall schedio",
+			"type": "shell",
+			"command": "wsl -d Kubernetes -- sudo dbus-launch true ; helm uninstall schedio --wait",
+			"options": {
+				"env": {
+					"KUBECONFIG": "\\\\wsl.localhost\\Kubernetes\\home\\ubuntu\\.kube\\config"
+				}
+			},
+			"group": "test",
+			"presentation": {
+				"reveal": "always",
+				"panel": "dedicated",
+				"focus": true
+			},
+			"problemMatcher": []
 		}
 	]
 }

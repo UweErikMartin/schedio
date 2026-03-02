@@ -1,0 +1,10 @@
+# Patterns to ignore when building packages.
+.DS_Store
+# Common VCS dirs
+.git/
+.gitignore
+.gitmodules
+# CI
+.github/
+# Backup files
+*.orig

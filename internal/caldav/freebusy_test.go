@@ -66,7 +66,7 @@ func TestFreeBusyQueryReportReturnsVFreeBusy(t *testing.T) {
 		t.Fatalf("PutEvent transparent: %v", err)
 	}
 
-	handler := NewHandler(store, "")
+	handler := newTestCaldavHandler(store, "")
 	body := `<?xml version="1.0" encoding="utf-8"?>
 <c:free-busy-query xmlns:c="urn:ietf:params:xml:ns:caldav">
   <c:time-range start="20260222T090000Z" end="20260222T110000Z"/>
@@ -103,7 +103,7 @@ func TestFreeBusyQueryReportReturnsVFreeBusy(t *testing.T) {
 }
 
 func TestFreeBusyQueryReportInvalidRangeReturnsBadRequest(t *testing.T) {
-	handler := NewHandler(calstore.NewMemoryStore(), "")
+	handler := newTestCaldavHandler(calstore.NewMemoryStore(), "")
 	body := `<?xml version="1.0" encoding="utf-8"?>
 <c:free-busy-query xmlns:c="urn:ietf:params:xml:ns:caldav">
 </c:free-busy-query>`
@@ -119,7 +119,7 @@ func TestFreeBusyQueryReportInvalidRangeReturnsBadRequest(t *testing.T) {
 }
 
 func TestFreeBusyQueryReportOnObjectReturnsForbidden(t *testing.T) {
-	handler := NewHandler(calstore.NewDummyStore(), "")
+	handler := newTestCaldavHandler(calstore.NewDummyStore(), "")
 	body := `<?xml version="1.0" encoding="utf-8"?>
 <c:free-busy-query xmlns:c="urn:ietf:params:xml:ns:caldav">
   <c:time-range start="20260201T000000Z" end="20260301T000000Z"/>

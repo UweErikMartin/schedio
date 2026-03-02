@@ -217,6 +217,26 @@ func (s *MemoryStore) ListTimeslots(_ context.Context, userID string, start, end
 	return result, nil
 }
 
+// ListRawTimeslots implements DomainStore.
+// Returns the unexpanded raw timeslot records for userID sorted by StartAt.
+// Recurring timeslots are returned once (with RRule intact), not expanded.
+func (s *MemoryStore) ListRawTimeslots(_ context.Context, userID string) ([]*Timeslot, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var result []*Timeslot
+	for _, t := range s.timeslots {
+		if t.UserID != userID {
+			continue
+		}
+		cp := *t
+		result = append(result, &cp)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].StartAt.Before(result[j].StartAt)
+	})
+	return result, nil
+}
+
 // GetTimeslot implements DomainStore.
 func (s *MemoryStore) GetTimeslot(_ context.Context, userID, uid string) (*Timeslot, error) {
 	s.mu.RLock()

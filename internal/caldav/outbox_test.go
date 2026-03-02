@@ -12,7 +12,7 @@ import (
 )
 
 func TestOutboxOptionsAdvertisesPost(t *testing.T) {
-	handler := NewHandler(calstore.NewMemoryStore(), "")
+	handler := newTestCaldavHandler(calstore.NewMemoryStore(), "")
 	req := httptest.NewRequest(http.MethodOptions, "http://example.com/caldav/user/outbox/", nil)
 	rec := httptest.NewRecorder()
 
@@ -31,7 +31,7 @@ func TestOutboxOptionsAdvertisesPost(t *testing.T) {
 }
 
 func TestOutboxPropfindIncludesSchedulingPrivileges(t *testing.T) {
-	handler := NewHandler(calstore.NewMemoryStore(), "")
+	handler := newTestCaldavHandler(calstore.NewMemoryStore(), "")
 	req := httptest.NewRequest("PROPFIND", "http://example.com/caldav/user/outbox/", strings.NewReader(`<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"/>`))
 	req.Header.Set("Depth", "0")
 	rec := httptest.NewRecorder()
@@ -68,7 +68,7 @@ func TestOutboxPostBusyRequestReturnsScheduleResponse(t *testing.T) {
 		t.Fatalf("PutEvent: %v", err)
 	}
 
-	handler := NewHandler(store, "")
+	handler := newTestCaldavHandler(store, "")
 	body := "BEGIN:VCALENDAR\r\n" +
 		"VERSION:2.0\r\n" +
 		"METHOD:REQUEST\r\n" +

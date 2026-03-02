@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"schedio/internal/auth"
 	calstore "schedio/internal/store"
 
 	ical "github.com/emersion/go-ical"
@@ -50,13 +51,43 @@ func (w *davEnforcingWriter) Write(b []byte) (int, error) {
 func (w *davEnforcingWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // NewHandler returns an http.Handler that implements the CalDAV protocol,
-// backed by the provided CalendarStore.
+// backed by the provided CalendarStore and DomainStore.
+//
+// When noAuth is false the handler enforces HTTP Basic Auth via authenticator.
+// When noAuth is true all auth checks are skipped and the first staff user
+// from domainStore is injected as the principal; this is for local development
+// only (e.g. when iOS refuses to send credentials over plain HTTP).
 //
 // rootPath is the URL prefix under which /caldav is mounted (e.g. "" or "/ui").
 // It must match the prefix used when registering the handler in the router.
-func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
+func NewHandler(calendarStore calstore.CalendarStore, domainStore calstore.DomainStore, authenticator *auth.Authenticator, rootPath string, noAuth bool) http.Handler {
+	combined := &combinedCalendarStore{base: calendarStore, domain: domainStore}
+
+	inner := buildCaldavHandler(combined, rootPath)
+	var authed http.Handler
+	if noAuth {
+		authed = noAuthMiddleware(domainStore, inner)
+	} else {
+		authed = basicAuthMiddleware(authenticator, inner)
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// OPTIONS: returns only DAV capability headers; no user data at all.
+		if r.Method == http.MethodOptions {
+			inner.ServeHTTP(w, r)
+			return
+		}
+		authed.ServeHTTP(w, r)
+	})
+}
+
+// buildCaldavHandler constructs the core CalDAV HTTP handler without a Basic
+// Auth wrapper. The caller is responsible for authentication; use NewHandler for
+// the production code path which adds basicAuthMiddleware automatically.
+// Tests may call this directly after injecting a principal into the request context.
+func buildCaldavHandler(combined *combinedCalendarStore, rootPath string) http.Handler {
 	inner := &extcaldav.Handler{
-		Backend: &storeAdapter{store: store, rootPath: rootPath},
+		Backend: &storeAdapter{store: combined, rootPath: rootPath},
 		Prefix:  rootPath + "/caldav",
 	}
 	// Precompute paths: these are constant for the lifetime of the handler.
@@ -65,27 +96,60 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 	inboxPath := rootPath + "/caldav/user/inbox/"
 	outboxPath := rootPath + "/caldav/user/outbox/"
 
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Wrap to ensure our DAV capabilities always appear in the response,
 		// even when the inner go-webdav handler sets its own Dav: header.
 		dw := &davEnforcingWriter{ResponseWriter: w}
 		w = dw
 		w.Header().Set("DAV", davCapabilities)
 
+		// CalDAV root collection PROPFIND: return current-user-principal so iOS
+		// has a successful authenticated response at the URL it was redirected to
+		// from /.well-known/caldav.  This completes the Basic Auth
+		// challenge-response cycle and causes iOS to store the credentials in its
+		// keychain for all subsequent requests.
+		caldavRootPath := rootPath + "/caldav/"
+		if r.URL.Path == caldavRootPath && r.Method == "PROPFIND" {
+			writeXML(w, http.StatusMultiStatus, fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<d:multistatus xmlns:d="DAV:" xmlns:c="%s">
+  <d:response>
+    <d:href>%s</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:current-user-principal><d:href>%s</d:href></d:current-user-principal>
+        <d:resourcetype><d:collection/></d:resourcetype>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>`, nsCalDAV, caldavRootPath, principalPath))
+			return
+		}
+
 		// Minimal scheduling discovery support (RFC 6638) so iOS treats the
 		// principal as scheduling-capable and enables free/busy related UI.
 		if r.URL.Path == principalPath && r.Method == "PROPFIND" {
 			defaultCalHref := ""
-			if cals, err := store.ListCalendars(r.Context()); err == nil && len(cals) > 0 {
+			if cals, err := combined.ListCalendars(r.Context()); err == nil && len(cals) > 0 {
 				defaultCalHref = rootPath + "/caldav/user/calendars/" + cals[0].ID + "/"
 			}
-			writeXML(w, http.StatusMultiStatus, principalMultistatus(rootPath, defaultCalHref))
+			userEmail := "user@schedio.local"
+			displayName := "User"
+			if u := principalFromContext(r.Context()); u != nil {
+				if u.Email != "" {
+					userEmail = u.Email
+				}
+				if u.Name != "" {
+					displayName = u.Name
+				}
+			}
+			writeXML(w, http.StatusMultiStatus, principalMultistatus(rootPath, defaultCalHref, userEmail, displayName))
 			return
 		}
 		if r.URL.Path == calHomePath && r.Method == "PROPFIND" {
 			depth := strings.TrimSpace(strings.ToLower(r.Header.Get("Depth")))
 			includeChildren := depth == "1" || depth == "infinity"
-			ms, err := calendarHomeMultistatus(r.Context(), store, rootPath, includeChildren)
+			ms, err := calendarHomeMultistatus(r.Context(), combined, rootPath, includeChildren)
 			if err != nil {
 				http.Error(w, "failed to build calendar home response", http.StatusInternalServerError)
 				return
@@ -97,7 +161,7 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 			if calID, ok := calendarIDFromCollectionPath(r.URL.Path, rootPath); ok {
 				depth := strings.TrimSpace(r.Header.Get("Depth"))
 				if depth == "" || depth == "0" {
-					ms, err := calendarCollectionMultistatus(r.Context(), store, rootPath, calID)
+					ms, err := calendarCollectionMultistatus(r.Context(), combined, rootPath, calID)
 					if err != nil {
 						http.Error(w, "failed to build calendar collection response", http.StatusInternalServerError)
 						return
@@ -109,7 +173,7 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 				// <d:response> per event. Each event entry carries
 				// current-user-privilege-set with write privileges so clients
 				// (e.g. iOS Calendar) enable write-level UI ("Show As Free/Busy").
-				ms, err := calendarCollectionDepth1Multistatus(r.Context(), store, rootPath, calID)
+				ms, err := calendarCollectionDepth1Multistatus(r.Context(), combined, rootPath, calID)
 				if err != nil {
 					http.Error(w, "failed to build calendar collection depth-1 response", http.StatusInternalServerError)
 					return
@@ -123,7 +187,7 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 			// CalendarObject::getACL() (which grants {DAV:}write to the owner)
 			// for every node, including individual event resources.
 			if calID, eventID, ok := calendarObjectFromPath(r.URL.Path, rootPath); ok {
-				e, err := store.GetEvent(r.Context(), calID, eventID)
+				e, err := combined.GetEvent(r.Context(), calID, eventID)
 				if errors.Is(err, calstore.ErrNotFound) {
 					http.NotFound(w, r)
 					return
@@ -150,7 +214,7 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 					http.Error(w, "free-busy-query can only target a collection", http.StatusForbidden)
 					return
 				}
-				vfb, fbErr := freeBusyQueryCalendarData(r.Context(), store, calID, body)
+				vfb, fbErr := freeBusyQueryCalendarData(r.Context(), combined, calID, body)
 				if fbErr != nil {
 					http.Error(w, fbErr.Error(), http.StatusBadRequest)
 					return
@@ -172,7 +236,7 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 			return
 		}
 		if r.URL.Path == inboxPath && r.Method == "PROPFIND" {
-			cals, _ := store.ListCalendars(r.Context())
+			cals, _ := combined.ListCalendars(r.Context())
 			var calHrefs []string
 			for _, c := range cals {
 				calHrefs = append(calHrefs, rootPath+"/caldav/user/calendars/"+c.ID+"/")
@@ -190,7 +254,7 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 				http.Error(w, "failed to read scheduling request", http.StatusBadRequest)
 				return
 			}
-			xmlResp, postErr := schedulingOutboxResponse(r.Context(), store, body)
+			xmlResp, postErr := schedulingOutboxResponse(r.Context(), combined, body)
 			if postErr != nil {
 				http.Error(w, postErr.Error(), http.StatusBadRequest)
 				return
@@ -235,9 +299,10 @@ func NewHandler(store calstore.CalendarStore, rootPath string) http.Handler {
 		}
 		inner.ServeHTTP(dw, r)
 	})
+	return handler
 }
 
-func principalMultistatus(rootPath, defaultCalHref string) string {
+func principalMultistatus(rootPath, defaultCalHref, userEmail, displayName string) string {
 	principal := rootPath + "/caldav/user/"
 	calHome := rootPath + "/caldav/user/calendars/"
 	inbox := rootPath + "/caldav/user/inbox/"
@@ -267,7 +332,7 @@ func principalMultistatus(rootPath, defaultCalHref string) string {
 					<d:href>%s</d:href>
 				</c:calendar-home-set>
 				<c:calendar-user-address-set>
-					<d:href>mailto:user@example.com</d:href>
+				<d:href>mailto:` + xmlEscape(userEmail) + `</d:href>
 				</c:calendar-user-address-set>
 				<c:calendar-user-type>INDIVIDUAL</c:calendar-user-type>%s
 				<c:schedule-inbox-URL>
@@ -277,7 +342,7 @@ func principalMultistatus(rootPath, defaultCalHref string) string {
 					<d:href>%s</d:href>
 				</c:schedule-outbox-URL>
 				<d:resourcetype><d:collection/><d:principal/></d:resourcetype>
-				<d:displayname>User</d:displayname>
+				<d:displayname>` + xmlEscape(displayName) + `</d:displayname>
 				<d:current-user-privilege-set>
 					<d:privilege><d:read/></d:privilege>
 					<d:privilege><d:write/></d:privilege>
