@@ -4,9 +4,10 @@ import (
 	"context"
 	"net/http"
 
-	"k8s.io/klog/v2"
 	"schedio/internal/auth"
 	calstore "schedio/internal/store"
+
+	"k8s.io/klog/v2"
 )
 
 // principalKey is the unexported context key used to attach the authenticated

@@ -20,8 +20,9 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog/v2"
 	calstore "schedio/internal/store"
+
+	"k8s.io/klog/v2"
 )
 
 const availCalPrefix = "avail-"
@@ -110,7 +111,7 @@ func (s *combinedCalendarStore) viewableAvailCalendars(ctx context.Context) ([]*
 		return cals, nil
 	}
 	// Staff: only their own availability calendar.
-	klog.V(1).Infof("caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)", )
+	klog.V(1).Infof("caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)")
 	return []*calstore.Calendar{availCalendar(u)}, nil
 }
 

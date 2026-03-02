@@ -332,7 +332,7 @@ func principalMultistatus(rootPath, defaultCalHref, userEmail, displayName strin
 					<d:href>%s</d:href>
 				</c:calendar-home-set>
 				<c:calendar-user-address-set>
-				<d:href>mailto:` + xmlEscape(userEmail) + `</d:href>
+				<d:href>mailto:`+xmlEscape(userEmail)+`</d:href>
 				</c:calendar-user-address-set>
 				<c:calendar-user-type>INDIVIDUAL</c:calendar-user-type>%s
 				<c:schedule-inbox-URL>
@@ -342,7 +342,7 @@ func principalMultistatus(rootPath, defaultCalHref, userEmail, displayName strin
 					<d:href>%s</d:href>
 				</c:schedule-outbox-URL>
 				<d:resourcetype><d:collection/><d:principal/></d:resourcetype>
-				<d:displayname>` + xmlEscape(displayName) + `</d:displayname>
+				<d:displayname>`+xmlEscape(displayName)+`</d:displayname>
 				<d:current-user-privilege-set>
 					<d:privilege><d:read/></d:privilege>
 					<d:privilege><d:write/></d:privilege>
