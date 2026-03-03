@@ -157,15 +157,71 @@ func (s *MemoryStore) DeleteService(_ context.Context, id string) error {
 
 // ── Timeslots ─────────────────────────────────────────────────────────────────
 
+// compositeTimeslotKey returns the map key for a Timeslot. Series roots and
+// single events are keyed by CalDAVUID alone. Override records are keyed by
+// CalDAVUID + ":" + recurrenceID in RFC3339 format so they can coexist with
+// their series root in the same map without collision.
+func compositeTimeslotKey(uid string, recurrenceID time.Time) string {
+	if recurrenceID.IsZero() {
+		return uid
+	}
+	return uid + ":" + recurrenceID.UTC().Format(time.RFC3339)
+}
+
+// isExcluded reports whether occ matches any time in exDates (UTC comparison,
+// truncated to second precision to tolerate minor formatting differences).
+func isExcluded(occ time.Time, exDates []time.Time) bool {
+	for _, ex := range exDates {
+		if occ.UTC().Truncate(time.Second).Equal(ex.UTC().Truncate(time.Second)) {
+			return true
+		}
+	}
+	return false
+}
+
 // ListTimeslots implements DomainStore.
 // Returns timeslots for userID whose window overlaps [start, end].
 // Zero start/end means no bound.
+// Recurring series roots are expanded into individual occurrences; EXDATE
+// occurrences and occurrences whose date has a stored override record are
+// skipped (the override record's own window is the authoritative availability
+// window for that occurrence). Override records are themselves included at
+// their actual StartAt/EndAt so that moved occurrences appear at the
+// rescheduled time rather than the original series-root time.
 func (s *MemoryStore) ListTimeslots(_ context.Context, userID string, start, end time.Time) ([]*Timeslot, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	// Build a per-series set of override dates so series-root expansion can
+	// skip occurrences whose authoritative window lives in an override record.
+	overrideDatesByUID := make(map[string]map[int64]bool)
+	for _, t := range s.timeslots {
+		if t.UserID != userID || t.RecurrenceID.IsZero() {
+			continue
+		}
+		if overrideDatesByUID[t.CalDAVUID] == nil {
+			overrideDatesByUID[t.CalDAVUID] = make(map[int64]bool)
+		}
+		overrideDatesByUID[t.CalDAVUID][t.RecurrenceID.UTC().Truncate(time.Second).Unix()] = true
+	}
+
 	var result []*Timeslot
 	for _, t := range s.timeslots {
 		if t.UserID != userID {
+			continue
+		}
+		if !t.RecurrenceID.IsZero() {
+			// Override record: include it at its actual window so that moved
+			// occurrences appear at the correct rescheduled time.
+			if !start.IsZero() && t.EndAt.Before(start) {
+				continue
+			}
+			if !end.IsZero() && t.StartAt.After(end) {
+				continue
+			}
+			cp := *t
+			cp.ExDates = nil // overrides carry no EXDATEs of their own
+			result = append(result, &cp)
 			continue
 		}
 		if t.RRule == "" {
@@ -177,11 +233,13 @@ func (s *MemoryStore) ListTimeslots(_ context.Context, userID string, start, end
 				continue
 			}
 			cp := *t
+			cp.ExDates = append([]time.Time(nil), t.ExDates...)
 			result = append(result, &cp)
 			continue
 		}
 		// Recurring: expand the RRULE and return one synthetic Timeslot entry
-		// per occurrence that falls within [start, end).
+		// per occurrence that falls within [start, end), skipping EXDATEs and
+		// occurrences that have a stored override record.
 		opts, err := rrulego.StrToROption(t.RRule)
 		if err != nil {
 			klog.Warningf("store: timeslot %q has invalid RRule %q: %v — skipped", t.CalDAVUID, t.RRule, err)
@@ -203,9 +261,19 @@ func (s *MemoryStore) ListTimeslots(_ context.Context, userID string, start, end
 		if !end.IsZero() {
 			qEnd = end
 		}
+		overrideDates := overrideDatesByUID[t.CalDAVUID]
 		// Between(after, before, inc) with inc=true returns start <= occ <= end.
 		for _, occ := range rr.Between(qStart, qEnd, true) {
+			// Skip occurrences excluded by EXDATE.
+			if isExcluded(occ, t.ExDates) {
+				continue
+			}
+			// Skip occurrences whose window is governed by a stored override record.
+			if overrideDates[occ.UTC().Truncate(time.Second).Unix()] {
+				continue
+			}
 			cp := *t
+			cp.ExDates = append([]time.Time(nil), t.ExDates...)
 			cp.StartAt = occ
 			cp.EndAt = occ.Add(duration)
 			result = append(result, &cp)
@@ -220,6 +288,9 @@ func (s *MemoryStore) ListTimeslots(_ context.Context, userID string, start, end
 // ListRawTimeslots implements DomainStore.
 // Returns the unexpanded raw timeslot records for userID sorted by StartAt.
 // Recurring timeslots are returned once (with RRule intact), not expanded.
+// Override records (RecurrenceID != zero) are excluded because CalDAV clients
+// receive overrides embedded inside the same .ics as the series root — they
+// should not appear as separate calendar objects in directory listings.
 func (s *MemoryStore) ListRawTimeslots(_ context.Context, userID string) ([]*Timeslot, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -228,7 +299,13 @@ func (s *MemoryStore) ListRawTimeslots(_ context.Context, userID string) ([]*Tim
 		if t.UserID != userID {
 			continue
 		}
+		// Overrides share the CalDAVUID with the series root; they must not
+		// appear as separate .ics entries in calendar directory listings.
+		if !t.RecurrenceID.IsZero() {
+			continue
+		}
 		cp := *t
+		cp.ExDates = append([]time.Time(nil), t.ExDates...)
 		result = append(result, &cp)
 	}
 	sort.Slice(result, func(i, j int) bool {
@@ -238,44 +315,194 @@ func (s *MemoryStore) ListRawTimeslots(_ context.Context, userID string) ([]*Tim
 }
 
 // GetTimeslot implements DomainStore.
+// Returns the series root (or single-event) record identified by its CalDAVUID.
+// Overrides are stored under composite keys and are not returned by this method.
 func (s *MemoryStore) GetTimeslot(_ context.Context, userID, uid string) (*Timeslot, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	t, ok := s.timeslots[uid]
+	t, ok := s.timeslots[compositeTimeslotKey(uid, time.Time{})]
 	if !ok || t.UserID != userID {
 		return nil, ErrNotFound
 	}
 	cp := *t
+	cp.ExDates = append([]time.Time(nil), t.ExDates...)
 	return &cp, nil
 }
 
 // UpsertTimeslot implements DomainStore.
-// Creates the timeslot when CalDAVUID is new; replaces the existing record otherwise.
+// Creates the timeslot when the composite key (CalDAVUID, RecurrenceID) is new;
+// replaces the existing record otherwise. ExDates are preserved (deep-copied).
+//
+// Returns ErrConflict when the timeslot's effective time windows (its own
+// window for single events and overrides, or all non-EXDATE RRULE occurrences
+// for series roots) overlap with any existing timeslot of the same user.
+// The record being replaced (same composite key) is excluded from the check.
 func (s *MemoryStore) UpsertTimeslot(_ context.Context, t *Timeslot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	key := compositeTimeslotKey(t.CalDAVUID, t.RecurrenceID)
+
+	// Check for overlap against all existing timeslots of the same user,
+	// excluding the record we are about to replace.
+	if err := s.checkTimeslotOverlapLocked(t, key); err != nil {
+		return err
+	}
+
 	now := time.Now().UTC()
 	cp := *t
-	if existing, ok := s.timeslots[cp.CalDAVUID]; ok {
+	if existing, ok := s.timeslots[key]; ok {
 		cp.CreatedAt = existing.CreatedAt
 	} else {
 		cp.CreatedAt = now
 	}
 	cp.UpdatedAt = now
 	cp.CalDAVETag = newToken()
-	s.timeslots[cp.CalDAVUID] = &cp
+	cp.ExDates = append([]time.Time(nil), t.ExDates...)
+	s.timeslots[key] = &cp
+	return nil
+}
+
+// overlapHorizon is the upper bound used when expanding infinite recurring
+// series for the purpose of overlap detection (3 years from now).
+var overlapHorizon = func() time.Time {
+	return time.Now().UTC().AddDate(3, 0, 0)
+}
+
+// timeslotWindows returns the effective [start, end) windows for t, up to
+// horizon. For a series root, RRULE occurrences are expanded with EXDATE and
+// any currently stored override dates excluded so that the override record's
+// own window is the authoritative window for that occurrence.
+//
+// extraExclude is an additional occurrence date to exclude from expansion
+// (beyond stored overrides). It is used by checkTimeslotOverlapLocked to
+// exclude the incoming override's RecurrenceID from the existing series root's
+// expansion: the override has not yet been stored — but once it is, the series
+// root will no longer own that occurrence window.
+//
+// Must be called with s.mu held (read or write).
+func (s *MemoryStore) timeslotWindowsLocked(t *Timeslot, horizon time.Time, extraExclude time.Time) [][2]time.Time {
+	if !t.RecurrenceID.IsZero() || t.RRule == "" {
+		// Single event or override: exactly one window.
+		return [][2]time.Time{{t.StartAt, t.EndAt}}
+	}
+	// Series root: expand RRULE occurrences up to horizon, skipping EXDATEs
+	// and dates that already have an override stored (those are accounted for
+	// by the override record's own window).
+	overrideDates := make(map[int64]bool) // Unix seconds → true
+	for _, rec := range s.timeslots {
+		if rec.CalDAVUID == t.CalDAVUID && rec.UserID == t.UserID && !rec.RecurrenceID.IsZero() {
+			overrideDates[rec.RecurrenceID.UTC().Truncate(time.Second).Unix()] = true
+		}
+	}
+	// Also exclude a pending incoming override that is not yet stored.
+	if !extraExclude.IsZero() {
+		overrideDates[extraExclude.UTC().Truncate(time.Second).Unix()] = true
+	}
+
+	opts, err := rrulego.StrToROption(t.RRule)
+	if err != nil {
+		return nil
+	}
+	opts.Dtstart = t.StartAt
+	rr, err := rrulego.NewRRule(*opts)
+	if err != nil {
+		return nil
+	}
+	duration := t.EndAt.Sub(t.StartAt)
+	var windows [][2]time.Time
+	for _, occ := range rr.Between(t.StartAt, horizon, true) {
+		if isExcluded(occ, t.ExDates) {
+			continue
+		}
+		if overrideDates[occ.UTC().Truncate(time.Second).Unix()] {
+			continue
+		}
+		windows = append(windows, [2]time.Time{occ, occ.Add(duration)})
+	}
+	return windows
+}
+
+// checkTimeslotOverlapLocked returns ErrConflict when the incoming timeslot t
+// overlaps with any existing timeslot for the same user, excluding the record
+// at excludeKey (which is the record being replaced in an update).
+// Must be called with s.mu held for writing.
+func (s *MemoryStore) checkTimeslotOverlapLocked(t *Timeslot, excludeKey string) error {
+	horizon := overlapHorizon()
+	newWindows := s.timeslotWindowsLocked(t, horizon, time.Time{})
+	if len(newWindows) == 0 {
+		return nil
+	}
+	for existKey, existing := range s.timeslots {
+		if existing.UserID != t.UserID {
+			continue
+		}
+		if existKey == excludeKey {
+			continue
+		}
+		// When the incoming record is an override, exclude its RecurrenceID from
+		// the existing series root's expansion. The override replaces that
+		// occurrence — once stored, the series root no longer owns that window.
+		var pendingOD time.Time
+		if !t.RecurrenceID.IsZero() && existing.CalDAVUID == t.CalDAVUID && existing.RecurrenceID.IsZero() {
+			pendingOD = t.RecurrenceID
+		}
+		for _, ew := range s.timeslotWindowsLocked(existing, horizon, pendingOD) {
+			for _, nw := range newWindows {
+				// Windows overlap when: existStart < newEnd AND newStart < existEnd
+				if ew[0].Before(nw[1]) && nw[0].Before(ew[1]) {
+					klog.V(2).Infof("store: timeslot overlap: uid=%q [%v,%v) conflicts with uid=%q [%v,%v)",
+						t.CalDAVUID, nw[0], nw[1], existing.CalDAVUID, ew[0], ew[1])
+					return ErrConflict
+				}
+			}
+		}
+	}
 	return nil
 }
 
 // DeleteTimeslot implements DomainStore.
+// Removes the series root or single-event identified by CalDAVUID.
+// Override records for the same CalDAVUID are NOT removed; call
+// DeleteTimeslotOverrides first when deleting a recurring series (CDV-TS-2 Case B).
 func (s *MemoryStore) DeleteTimeslot(_ context.Context, userID, uid string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	t, ok := s.timeslots[uid]
+	key := compositeTimeslotKey(uid, time.Time{})
+	t, ok := s.timeslots[key]
 	if !ok || t.UserID != userID {
 		return ErrNotFound
 	}
-	delete(s.timeslots, uid)
+	delete(s.timeslots, key)
+	return nil
+}
+
+// DeleteTimeslotOverride implements DomainStore.
+// Removes the single override record identified by (userID, CalDAVUID, recurrenceID).
+func (s *MemoryStore) DeleteTimeslotOverride(_ context.Context, userID, uid string, recurrenceID time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := compositeTimeslotKey(uid, recurrenceID)
+	t, ok := s.timeslots[key]
+	if !ok || t.UserID != userID {
+		return ErrNotFound
+	}
+	delete(s.timeslots, key)
+	return nil
+}
+
+// DeleteTimeslotOverrides implements DomainStore.
+// Removes all override records for the given series CalDAVUID (i.e. all
+// Timeslots with the same CalDAVUID whose RecurrenceID is non-zero).
+// Returns nil when no overrides exist.
+func (s *MemoryStore) DeleteTimeslotOverrides(_ context.Context, userID, uid string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for key, t := range s.timeslots {
+		if t.CalDAVUID == uid && t.UserID == userID && !t.RecurrenceID.IsZero() {
+			delete(s.timeslots, key)
+		}
+	}
 	return nil
 }
 

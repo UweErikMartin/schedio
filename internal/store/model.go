@@ -38,6 +38,10 @@ type Event struct {
 	RRule string
 	// RecurrenceID is non-zero for override instances of a recurring series.
 	RecurrenceID time.Time
+	// ExDates lists occurrence start-times (UTC) that are excluded from an
+	// otherwise recurring series (iCal EXDATE property). Empty for non-recurring
+	// events and for override instances. Populated on the series root.
+	ExDates []time.Time
 }
 
 // EventStatus mirrors the iCal STATUS property values for VEVENT.

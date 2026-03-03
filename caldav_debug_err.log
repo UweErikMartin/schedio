@@ -1,0 +1,2863 @@
+I0303 20:55:05.794187   37448 cmdline.go:76] reading services from config/services.yaml
+I0303 20:55:05.809191   37448 cmdline.go:86] reading users from config/users.yaml
+I0303 20:55:05.830992   37448 cmdline.go:95] reading timeslots from config/availability.yaml
+I0303 20:55:05.853604   37448 main.go:38] syncing 2 users into domain store
+I0303 20:55:05.874945   37448 main.go:44] syncing 2 services into domain store
+I0303 20:55:05.896804   37448 main.go:50] syncing 3 timeslots into domain store
+I0303 20:55:05.913999   37448 main.go:68] schedio listening on 0.0.0.0:80
+I0303 20:55:58.754963   37448 middleware.go:46] PROPFIND /.well-known/caldav                                301  0s  [fe80::455:dc24:e3c5:4d14%Ethernet]:52633
+I0303 20:55:58.756061   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /.well-known/caldav HTTP/1.1
+│  Depth: 0
+│  Accept: */*
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Brief: t
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) accountsd/1.0
+│  Content-Length: 181
+│  Content-Type: text/xml
+├─ RESPONSE 301
+│  Location: /caldav/
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:current-user-principal/>
+│      <A:principal-URL/>
+│      <A:resourcetype/>
+│    </A:prop>
+│  </A:propfind>
+│  
+└─
+I0303 20:55:58.765099   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:55:58.797155   37448 middleware.go:46] PROPFIND /caldav/                                           207  32ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52633
+I0303 20:55:58.797727   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/ HTTP/1.1
+│  Content-Type: text/xml
+│  Depth: 0
+│  Accept: */*
+│  Prefer: return=minimal
+│  Accept-Language: de-DE,de;q=0.9
+│  Brief: t
+│  Connection: keep-alive
+│  User-Agent: iOS/26.3 (23D127) accountsd/1.0
+│  Content-Length: 181
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:current-user-principal/>
+│      <A:principal-URL/>
+│      <A:resourcetype/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (445 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+│    <d:response>
+│      <d:href>/caldav/</d:href>
+│      <d:propstat>
+│        <d:prop>
+│          <d:current-user-principal><d:href>/caldav/user/</d:href></d:current-user-principal>
+│          <d:resourcetype><d:collection/></d:resourcetype>
+│        </d:prop>
+│        <d:status>HTTP/1.1 200 OK</d:status>
+│      </d:propstat>
+│    </d:response>
+│  </d:multistatus>
+└─
+I0303 20:55:58.854880   37448 middleware.go:46] OPTIONS  /caldav/user/                                      204  0s  [fe80::455:dc24:e3c5:4d14%Ethernet]:52637
+I0303 20:55:58.855425   37448 middleware.go:79] 
+┌─ REQUEST  OPTIONS /caldav/user/ HTTP/1.1
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) accountsd/1.0
+│  Accept-Language: de-DE,de;q=0.9
+│  Content-Length: 0
+│  Accept-Encoding: gzip, deflate
+│  Connection: keep-alive
+├─ RESPONSE 204
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Allow: OPTIONS, PROPFIND, REPORT, DELETE, MKCOL
+└─
+I0303 20:56:06.992562   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:06.993108   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:06.993657   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:06.994197   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:06.994740   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:06.995285   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:06.995834   37448 middleware.go:46] PROPFIND /caldav/user/                                      207  3ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52638
+I0303 20:56:06.996386   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/ HTTP/1.1
+│  Content-Length: 819
+│  Accept-Language: de-DE,de;q=0.9
+│  Content-Type: text/xml
+│  Depth: 0
+│  Brief: t
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) remindd/3900.1
+│  Accept-Encoding: gzip, deflate
+│  Connection: keep-alive
+│  Prefer: return=minimal
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (819 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <B:calendar-home-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:calendar-user-address-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:current-user-principal/>
+│      <A:displayname/>
+│      <C:dropbox-home-URL xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:email-address-set xmlns:C="http://calendarserver.org/ns/"/>
+│      <B:max-attendees-per-instance xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <C:notification-URL xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:principal-collection-set/>
+│      <A:principal-URL/>
+│      <A:resource-id/>
+│      <B:schedule-inbox-URL xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:schedule-outbox-URL xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:supported-report-set/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (1952 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:current-user-principal>
+│  					<d:href>/caldav/user/</d:href>
+│  				</d:current-user-principal>
+│  				<c:calendar-home-set>
+│  					<d:href>/caldav/user/calendars/</d:href>
+│  				</c:calendar-home-set>
+│  				<c:calendar-user-address-set>
+│  				<d:href>mailto:staff@example.de</d:href>
+│  				</c:calendar-user-address-set>
+│  				<c:calendar-user-type>INDIVIDUAL</c:calendar-user-type>
+│  				<c:schedule-default-calendar-URL><d:href>/caldav/user/calendars/default/</d:href></c:schedule-default-calendar-URL>
+│  				<c:schedule-inbox-URL>
+│  					<d:href>/caldav/user/inbox/</d:href>
+│  				</c:schedule-inbox-URL>
+│  				<c:schedule-outbox-URL>
+│  					<d:href>/caldav/user/outbox/</d:href>
+│  				</c:schedule-outbox-URL>
+│  				<d:resourcetype><d:collection/><d:principal/></d:resourcetype>
+│  				<d:displayname>Anna Müller</d:displayname>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><d:read-acl/></d:privilege>
+│  					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+│  					<d:privilege><c:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:07.091512   37448 middleware.go:46] OPTIONS  /caldav/user/                                      204  0s  [fe80::455:dc24:e3c5:4d14%Ethernet]:52639
+I0303 20:56:07.092064   37448 middleware.go:79] 
+┌─ REQUEST  OPTIONS /caldav/user/ HTTP/1.1
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) remindd/3900.1
+│  Accept-Language: de-DE,de;q=0.9
+│  Content-Length: 0
+│  Accept-Encoding: gzip, deflate
+│  Connection: keep-alive
+├─ RESPONSE 204
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Allow: OPTIONS, PROPFIND, REPORT, DELETE, MKCOL
+└─
+I0303 20:56:07.167474   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:07.168032   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:07.168575   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:07.169134   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:07.169724   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:07.170275   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:07.170863   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:07.171820   37448 middleware.go:46] PROPFIND /caldav/user/calendars/                            207  4ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52640
+I0303 20:56:07.172377   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/ HTTP/1.1
+│  Depth: 1
+│  Brief: t
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) remindd/3900.1
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Accept: */*
+│  Content-Length: 2237
+│  Accept-Language: de-DE,de;q=0.9
+├─ RESPONSE 207
+│  Content-Type: application/xml; charset=utf-8
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+├─ REQ BODY (2237 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:add-member/>
+│      <C:allowed-sharing-modes xmlns:C="http://calendarserver.org/ns/"/>
+│      <D:autoprovisioned xmlns:D="http://apple.com/ns/ical/"/>
+│      <E:bulk-requests xmlns:E="http://me.com/_namespace/"/>
+│      <B:calendar-alarm xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <D:calendar-color xmlns:D="http://apple.com/ns/ical/"/>
+│      <B:calendar-description xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:calendar-free-busy-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <D:calendar-order xmlns:D="http://apple.com/ns/ical/"/>
+│      <B:calendar-timezone xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:current-user-privilege-set/>
+│      <B:default-alarm-vevent-date xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:default-alarm-vevent-datetime xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:displayname/>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <D:language-code xmlns:D="http://apple.com/ns/ical/"/>
+│      <D:location-code xmlns:D="http://apple.com/ns/ical/"/>
+│      <B:max-attendees-per-instance xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:owner/>
+│      <C:pre-publish-url xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:publish-url xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:push-transports xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:pushkey xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:quota-available-bytes/>
+│      <A:quota-used-bytes/>
+│      <D:refreshrate xmlns:D="http://apple.com/ns/ical/"/>
+│      <A:resource-id/>
+│      <A:resourcetype/>
+│      <B:schedule-calendar-transp xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:schedule-default-calendar-URL xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <C:source xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-alarms xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-attachments xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-todos xmlns:C="http://calendarserver.org/ns/"/>
+│      <B:supported-calendar-component-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:supported-calendar-component-sets xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:supported-report-set/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (5693 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:s="http://sabredav.org/ns"><d:response>
+│  	<d:href>/caldav/user/calendars/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cal:schedule-default-calendar-URL><d:href>/caldav/user/calendars/default/</d:href></cal:schedule-default-calendar-URL>
+│  		</d:prop>
+│  		<d:status>HTTP/1.1 200 OK</d:status>
+│  	</d:propstat>
+│  </d:response><d:response>
+│  	<d:href>/caldav/user/calendars/default/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cs:getctag>669ee8512ec3972b</cs:getctag>
+│  			<s:sync-token>669ee8512ec3972b</s:sync-token>
+│  			<cal:supported-calendar-component-set>
+│  				<cal:comp name="VEVENT"/>
+│  			</cal:supported-calendar-component-set>
+│  			<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  			<d:displayname>Default Calendar</d:displayname>
+│  			<cal:calendar-description>schedio default calendar</cal:calendar-description>
+│  			<cal:calendar-timezone>UTC</cal:calendar-timezone>
+│  			<x1:calendar-order xmlns:x1="http://apple.com/ns/ical/">0</x1:calendar-order>
+│  			<x1:calendar-color xmlns:x1="http://apple.com/ns/ical/"></x1:calendar-color>
+│  			<d:current-user-privilege-set>
+│  				<d:privilege><d:read/></d:privilege>
+│  				<d:privilege><d:write/></d:privilege>
+│  				<d:privilege><d:write-properties/></d:privilege>
+│  				<d:privilege><d:write-content/></d:privilege>
+│  				<d:privilege><cal:read-free-busy/></d:privilege>
+│  			</d:current-user-privilege-set>
+│  		</d:prop>
+│  		<d:status>HTTP/1.1 200 OK</d:status>
+│  	</d:propstat>
+│  </d:response><d:response>
+│  	<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cs:getctag>835bd60af310cfd5</cs:getctag>
+│  			<s:sync-token>835bd60af310cfd5</s:sync-token>
+│  			<cal:supported-calendar-compon
+│  …(truncated)
+└─
+I0303 20:56:07.349274   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:07.349847   37448 middleware.go:46] MKCALENDAR /caldav/user/calendars/49AAF889-FA06-497E-8B2D-0BF6D56F48A0/ 403  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52641
+I0303 20:56:07.350392   37448 middleware.go:79] 
+┌─ REQUEST  MKCALENDAR /caldav/user/calendars/49AAF889-FA06-497E-8B2D-0BF6D56F48A0/ HTTP/1.1
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Connection: keep-alive
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) remindd/3900.1
+│  Content-Length: 1186
+├─ RESPONSE 403
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: text/plain; charset=utf-8
+│  X-Content-Type-Options: nosniff
+├─ REQ BODY (1186 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <B:mkcalendar xmlns:B="urn:ietf:params:xml:ns:caldav">
+│    <A:set xmlns:A="DAV:">
+│      <A:prop>
+│        <B:schedule-calendar-transp>
+│          <B:transparent/>
+│        </B:schedule-calendar-transp>
+│        <D:calendar-order xmlns:D="http://apple.com/ns/ical/">1</D:calendar-order>
+│        <A:displayname>DEFAULT_TASK_CALENDAR_NAME</A:displayname>
+│        <B:calendar-timezone>BEGIN:VCALENDAR&#13;
+│  VERSION:2.0&#13;
+│  CALSCALE:GREGORIAN&#13;
+│  BEGIN:VTIMEZONE&#13;
+│  TZID:Europe/Berlin&#13;
+│  BEGIN:DAYLIGHT&#13;
+│  TZOFFSETFROM:+0100&#13;
+│  RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU&#13;
+│  DTSTART:19810329T020000&#13;
+│  TZNAME:MESZ&#13;
+│  TZOFFSETTO:+0200&#13;
+│  END:DAYLIGHT&#13;
+│  BEGIN:STANDARD&#13;
+│  TZOFFSETFROM:+0200&#13;
+│  RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU&#13;
+│  DTSTART:19961027T030000&#13;
+│  TZNAME:MEZ&#13;
+│  TZOFFSETTO:+0100&#13;
+│  END:STANDARD&#13;
+│  END:VTIMEZONE&#13;
+│  END:VCALENDAR&#13;
+│  </B:calendar-timezone>
+│        <D:calendar-color xmlns:D="http://apple.com/ns/ical/" symbolic-color="custom">#007AFF</D:calendar-color>
+│        <B:supported-calendar-component-set>
+│          <B:comp name="VTODO"/>
+│        </B:supported-calendar-component-set>
+│      </A:prop>
+│    </A:set>
+│  </B:mkcalendar>
+│  
+├─ RSP BODY (32 bytes)
+│  │  calendar creation not supported
+│  
+└─
+I0303 20:56:07.435583   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:07.436180   37448 middleware.go:46] MKCALENDAR /caldav/user/calendars/49AAF889-FA06-497E-8B2D-0BF6D56F48A0/ 403  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52642
+I0303 20:56:07.436748   37448 middleware.go:79] 
+┌─ REQUEST  MKCALENDAR /caldav/user/calendars/49AAF889-FA06-497E-8B2D-0BF6D56F48A0/ HTTP/1.1
+│  Connection: keep-alive
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) remindd/3900.1
+│  Content-Length: 1186
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+├─ RESPONSE 403
+│  Content-Type: text/plain; charset=utf-8
+│  X-Content-Type-Options: nosniff
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+├─ REQ BODY (1186 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <B:mkcalendar xmlns:B="urn:ietf:params:xml:ns:caldav">
+│    <A:set xmlns:A="DAV:">
+│      <A:prop>
+│        <B:schedule-calendar-transp>
+│          <B:transparent/>
+│        </B:schedule-calendar-transp>
+│        <D:calendar-order xmlns:D="http://apple.com/ns/ical/">1</D:calendar-order>
+│        <A:displayname>DEFAULT_TASK_CALENDAR_NAME</A:displayname>
+│        <B:calendar-timezone>BEGIN:VCALENDAR&#13;
+│  VERSION:2.0&#13;
+│  CALSCALE:GREGORIAN&#13;
+│  BEGIN:VTIMEZONE&#13;
+│  TZID:Europe/Berlin&#13;
+│  BEGIN:DAYLIGHT&#13;
+│  TZOFFSETFROM:+0100&#13;
+│  RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU&#13;
+│  DTSTART:19810329T020000&#13;
+│  TZNAME:MESZ&#13;
+│  TZOFFSETTO:+0200&#13;
+│  END:DAYLIGHT&#13;
+│  BEGIN:STANDARD&#13;
+│  TZOFFSETFROM:+0200&#13;
+│  RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU&#13;
+│  DTSTART:19961027T030000&#13;
+│  TZNAME:MEZ&#13;
+│  TZOFFSETTO:+0100&#13;
+│  END:STANDARD&#13;
+│  END:VTIMEZONE&#13;
+│  END:VCALENDAR&#13;
+│  </B:calendar-timezone>
+│        <B:supported-calendar-component-set>
+│          <B:comp name="VTODO"/>
+│        </B:supported-calendar-component-set>
+│        <D:calendar-color xmlns:D="http://apple.com/ns/ical/" symbolic-color="custom">#007AFF</D:calendar-color>
+│      </A:prop>
+│    </A:set>
+│  </B:mkcalendar>
+│  
+├─ RSP BODY (32 bytes)
+│  │  calendar creation not supported
+│  
+└─
+I0303 20:56:08.576549   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:08.577090   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:08.577648   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:08.578192   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:08.578739   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:08.578739   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:08.579281   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:08.580374   37448 middleware.go:46] PROPFIND /caldav/user/calendars/                            207  4ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52643
+I0303 20:56:08.580918   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/ HTTP/1.1
+│  Depth: 1
+│  Brief: t
+│  Accept: */*
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) remindd/3900.1
+│  Content-Length: 2237
+│  Content-Type: text/xml
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (2237 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:add-member/>
+│      <C:allowed-sharing-modes xmlns:C="http://calendarserver.org/ns/"/>
+│      <D:autoprovisioned xmlns:D="http://apple.com/ns/ical/"/>
+│      <E:bulk-requests xmlns:E="http://me.com/_namespace/"/>
+│      <B:calendar-alarm xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <D:calendar-color xmlns:D="http://apple.com/ns/ical/"/>
+│      <B:calendar-description xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:calendar-free-busy-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <D:calendar-order xmlns:D="http://apple.com/ns/ical/"/>
+│      <B:calendar-timezone xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:current-user-privilege-set/>
+│      <B:default-alarm-vevent-date xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:default-alarm-vevent-datetime xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:displayname/>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <D:language-code xmlns:D="http://apple.com/ns/ical/"/>
+│      <D:location-code xmlns:D="http://apple.com/ns/ical/"/>
+│      <B:max-attendees-per-instance xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:owner/>
+│      <C:pre-publish-url xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:publish-url xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:push-transports xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:pushkey xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:quota-available-bytes/>
+│      <A:quota-used-bytes/>
+│      <D:refreshrate xmlns:D="http://apple.com/ns/ical/"/>
+│      <A:resource-id/>
+│      <A:resourcetype/>
+│      <B:schedule-calendar-transp xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:schedule-default-calendar-URL xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <C:source xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-alarms xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-attachments xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-todos xmlns:C="http://calendarserver.org/ns/"/>
+│      <B:supported-calendar-component-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:supported-calendar-component-sets xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:supported-report-set/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (5693 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:s="http://sabredav.org/ns"><d:response>
+│  	<d:href>/caldav/user/calendars/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cal:schedule-default-calendar-URL><d:href>/caldav/user/calendars/default/</d:href></cal:schedule-default-calendar-URL>
+│  		</d:prop>
+│  		<d:status>HTTP/1.1 200 OK</d:status>
+│  	</d:propstat>
+│  </d:response><d:response>
+│  	<d:href>/caldav/user/calendars/default/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cs:getctag>669ee8512ec3972b</cs:getctag>
+│  			<s:sync-token>669ee8512ec3972b</s:sync-token>
+│  			<cal:supported-calendar-component-set>
+│  				<cal:comp name="VEVENT"/>
+│  			</cal:supported-calendar-component-set>
+│  			<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  			<d:displayname>Default Calendar</d:displayname>
+│  			<cal:calendar-description>schedio default calendar</cal:calendar-description>
+│  			<cal:calendar-timezone>UTC</cal:calendar-timezone>
+│  			<x1:calendar-order xmlns:x1="http://apple.com/ns/ical/">0</x1:calendar-order>
+│  			<x1:calendar-color xmlns:x1="http://apple.com/ns/ical/"></x1:calendar-color>
+│  			<d:current-user-privilege-set>
+│  				<d:privilege><d:read/></d:privilege>
+│  				<d:privilege><d:write/></d:privilege>
+│  				<d:privilege><d:write-properties/></d:privilege>
+│  				<d:privilege><d:write-content/></d:privilege>
+│  				<d:privilege><cal:read-free-busy/></d:privilege>
+│  			</d:current-user-privilege-set>
+│  		</d:prop>
+│  		<d:status>HTTP/1.1 200 OK</d:status>
+│  	</d:propstat>
+│  </d:response><d:response>
+│  	<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cs:getctag>835bd60af310cfd5</cs:getctag>
+│  			<s:sync-token>835bd60af310cfd5</s:sync-token>
+│  			<cal:supported-calendar-compon
+│  …(truncated)
+└─
+I0303 20:56:08.760605   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:08.761151   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:08.761699   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:08.761699   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:08.762244   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:08.762810   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:08.763358   37448 middleware.go:46] PROPFIND /caldav/user/                                      207  3ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52644
+I0303 20:56:08.763911   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/ HTTP/1.1
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 819
+│  Accept-Encoding: gzip, deflate
+│  Accept: */*
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  Accept-Language: de-DE,de;q=0.9
+│  Content-Type: text/xml
+│  Depth: 0
+│  Brief: t
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (819 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <B:calendar-home-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:calendar-user-address-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:current-user-principal/>
+│      <A:displayname/>
+│      <C:dropbox-home-URL xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:email-address-set xmlns:C="http://calendarserver.org/ns/"/>
+│      <B:max-attendees-per-instance xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <C:notification-URL xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:principal-collection-set/>
+│      <A:principal-URL/>
+│      <A:resource-id/>
+│      <B:schedule-inbox-URL xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:schedule-outbox-URL xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:supported-report-set/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (1952 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:current-user-principal>
+│  					<d:href>/caldav/user/</d:href>
+│  				</d:current-user-principal>
+│  				<c:calendar-home-set>
+│  					<d:href>/caldav/user/calendars/</d:href>
+│  				</c:calendar-home-set>
+│  				<c:calendar-user-address-set>
+│  				<d:href>mailto:staff@example.de</d:href>
+│  				</c:calendar-user-address-set>
+│  				<c:calendar-user-type>INDIVIDUAL</c:calendar-user-type>
+│  				<c:schedule-default-calendar-URL><d:href>/caldav/user/calendars/default/</d:href></c:schedule-default-calendar-URL>
+│  				<c:schedule-inbox-URL>
+│  					<d:href>/caldav/user/inbox/</d:href>
+│  				</c:schedule-inbox-URL>
+│  				<c:schedule-outbox-URL>
+│  					<d:href>/caldav/user/outbox/</d:href>
+│  				</c:schedule-outbox-URL>
+│  				<d:resourcetype><d:collection/><d:principal/></d:resourcetype>
+│  				<d:displayname>Anna Müller</d:displayname>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><d:read-acl/></d:privilege>
+│  					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+│  					<d:privilege><c:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:08.782082   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:08.792811   37448 middleware.go:46] MKCALENDAR /caldav/user/calendars/F0E634A1-C2C3-490D-8826-3B32497E97FF/ 403  11ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52645
+I0303 20:56:08.799474   37448 middleware.go:79] 
+┌─ REQUEST  MKCALENDAR /caldav/user/calendars/F0E634A1-C2C3-490D-8826-3B32497E97FF/ HTTP/1.1
+│  Content-Type: text/xml
+│  Connection: keep-alive
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) remindd/3900.1
+│  Content-Length: 1186
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 403
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: text/plain; charset=utf-8
+│  X-Content-Type-Options: nosniff
+├─ REQ BODY (1186 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <B:mkcalendar xmlns:B="urn:ietf:params:xml:ns:caldav">
+│    <A:set xmlns:A="DAV:">
+│      <A:prop>
+│        <B:calendar-timezone>BEGIN:VCALENDAR&#13;
+│  VERSION:2.0&#13;
+│  CALSCALE:GREGORIAN&#13;
+│  BEGIN:VTIMEZONE&#13;
+│  TZID:Europe/Berlin&#13;
+│  BEGIN:DAYLIGHT&#13;
+│  TZOFFSETFROM:+0100&#13;
+│  RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU&#13;
+│  DTSTART:19810329T020000&#13;
+│  TZNAME:MESZ&#13;
+│  TZOFFSETTO:+0200&#13;
+│  END:DAYLIGHT&#13;
+│  BEGIN:STANDARD&#13;
+│  TZOFFSETFROM:+0200&#13;
+│  RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU&#13;
+│  DTSTART:19961027T030000&#13;
+│  TZNAME:MEZ&#13;
+│  TZOFFSETTO:+0100&#13;
+│  END:STANDARD&#13;
+│  END:VTIMEZONE&#13;
+│  END:VCALENDAR&#13;
+│  </B:calendar-timezone>
+│        <D:calendar-order xmlns:D="http://apple.com/ns/ical/">2</D:calendar-order>
+│        <B:schedule-calendar-transp>
+│          <B:transparent/>
+│        </B:schedule-calendar-transp>
+│        <D:calendar-color xmlns:D="http://apple.com/ns/ical/" symbolic-color="custom">#007AFF</D:calendar-color>
+│        <B:supported-calendar-component-set>
+│          <B:comp name="VTODO"/>
+│        </B:supported-calendar-component-set>
+│        <A:displayname>DEFAULT_TASK_CALENDAR_NAME</A:displayname>
+│      </A:prop>
+│    </A:set>
+│  </B:mkcalendar>
+│  
+├─ RSP BODY (32 bytes)
+│  │  calendar creation not supported
+│  
+└─
+I0303 20:56:08.868997   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:08.869550   37448 middleware.go:46] MKCALENDAR /caldav/user/calendars/F0E634A1-C2C3-490D-8826-3B32497E97FF/ 403  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52646
+I0303 20:56:08.870097   37448 middleware.go:79] 
+┌─ REQUEST  MKCALENDAR /caldav/user/calendars/F0E634A1-C2C3-490D-8826-3B32497E97FF/ HTTP/1.1
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Connection: keep-alive
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) remindd/3900.1
+│  Content-Length: 1186
+│  Accept-Language: de-DE,de;q=0.9
+├─ RESPONSE 403
+│  Content-Type: text/plain; charset=utf-8
+│  X-Content-Type-Options: nosniff
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+├─ REQ BODY (1186 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <B:mkcalendar xmlns:B="urn:ietf:params:xml:ns:caldav">
+│    <A:set xmlns:A="DAV:">
+│      <A:prop>
+│        <B:calendar-timezone>BEGIN:VCALENDAR&#13;
+│  VERSION:2.0&#13;
+│  CALSCALE:GREGORIAN&#13;
+│  BEGIN:VTIMEZONE&#13;
+│  TZID:Europe/Berlin&#13;
+│  BEGIN:DAYLIGHT&#13;
+│  TZOFFSETFROM:+0100&#13;
+│  RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU&#13;
+│  DTSTART:19810329T020000&#13;
+│  TZNAME:MESZ&#13;
+│  TZOFFSETTO:+0200&#13;
+│  END:DAYLIGHT&#13;
+│  BEGIN:STANDARD&#13;
+│  TZOFFSETFROM:+0200&#13;
+│  RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU&#13;
+│  DTSTART:19961027T030000&#13;
+│  TZNAME:MEZ&#13;
+│  TZOFFSETTO:+0100&#13;
+│  END:STANDARD&#13;
+│  END:VTIMEZONE&#13;
+│  END:VCALENDAR&#13;
+│  </B:calendar-timezone>
+│        <D:calendar-order xmlns:D="http://apple.com/ns/ical/">2</D:calendar-order>
+│        <B:schedule-calendar-transp>
+│          <B:transparent/>
+│        </B:schedule-calendar-transp>
+│        <D:calendar-color xmlns:D="http://apple.com/ns/ical/" symbolic-color="custom">#007AFF</D:calendar-color>
+│        <B:supported-calendar-component-set>
+│          <B:comp name="VTODO"/>
+│        </B:supported-calendar-component-set>
+│        <A:displayname>DEFAULT_TASK_CALENDAR_NAME</A:displayname>
+│      </A:prop>
+│    </A:set>
+│  </B:mkcalendar>
+│  
+├─ RSP BODY (32 bytes)
+│  │  calendar creation not supported
+│  
+└─
+I0303 20:56:08.966695   37448 middleware.go:46] OPTIONS  /caldav/user/                                      204  0s  [fe80::455:dc24:e3c5:4d14%Ethernet]:52647
+I0303 20:56:08.967793   37448 middleware.go:79] 
+┌─ REQUEST  OPTIONS /caldav/user/ HTTP/1.1
+│  Content-Length: 0
+│  Accept-Encoding: gzip, deflate
+│  Connection: keep-alive
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Language: de-DE,de;q=0.9
+├─ RESPONSE 204
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Allow: OPTIONS, PROPFIND, REPORT, DELETE, MKCOL
+└─
+I0303 20:56:09.043062   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:09.043631   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:09.044173   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:09.044718   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:09.045267   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:09.045267   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:09.045820   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:09.047039   37448 middleware.go:46] PROPFIND /caldav/user/calendars/                            207  4ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52648
+I0303 20:56:09.047586   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/ HTTP/1.1
+│  Content-Type: text/xml
+│  Prefer: return=minimal
+│  Content-Length: 2237
+│  Depth: 1
+│  Brief: t
+│  Accept: */*
+│  Connection: keep-alive
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (2237 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:add-member/>
+│      <C:allowed-sharing-modes xmlns:C="http://calendarserver.org/ns/"/>
+│      <G:autoprovisioned xmlns:G="http://apple.com/ns/ical/"/>
+│      <E:bulk-requests xmlns:E="http://me.com/_namespace/"/>
+│      <B:calendar-alarm xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <G:calendar-color xmlns:G="http://apple.com/ns/ical/"/>
+│      <B:calendar-description xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:calendar-free-busy-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <G:calendar-order xmlns:G="http://apple.com/ns/ical/"/>
+│      <B:calendar-timezone xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:current-user-privilege-set/>
+│      <B:default-alarm-vevent-date xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:default-alarm-vevent-datetime xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:displayname/>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <G:language-code xmlns:G="http://apple.com/ns/ical/"/>
+│      <G:location-code xmlns:G="http://apple.com/ns/ical/"/>
+│      <B:max-attendees-per-instance xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:owner/>
+│      <C:pre-publish-url xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:publish-url xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:push-transports xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:pushkey xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:quota-available-bytes/>
+│      <A:quota-used-bytes/>
+│      <G:refreshrate xmlns:G="http://apple.com/ns/ical/"/>
+│      <A:resource-id/>
+│      <A:resourcetype/>
+│      <B:schedule-calendar-transp xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:schedule-default-calendar-URL xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <C:source xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-alarms xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-attachments xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-todos xmlns:C="http://calendarserver.org/ns/"/>
+│      <B:supported-calendar-component-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:supported-calendar-component-sets xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:supported-report-set/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (5693 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:s="http://sabredav.org/ns"><d:response>
+│  	<d:href>/caldav/user/calendars/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cal:schedule-default-calendar-URL><d:href>/caldav/user/calendars/default/</d:href></cal:schedule-default-calendar-URL>
+│  		</d:prop>
+│  		<d:status>HTTP/1.1 200 OK</d:status>
+│  	</d:propstat>
+│  </d:response><d:response>
+│  	<d:href>/caldav/user/calendars/default/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cs:getctag>669ee8512ec3972b</cs:getctag>
+│  			<s:sync-token>669ee8512ec3972b</s:sync-token>
+│  			<cal:supported-calendar-component-set>
+│  				<cal:comp name="VEVENT"/>
+│  			</cal:supported-calendar-component-set>
+│  			<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  			<d:displayname>Default Calendar</d:displayname>
+│  			<cal:calendar-description>schedio default calendar</cal:calendar-description>
+│  			<cal:calendar-timezone>UTC</cal:calendar-timezone>
+│  			<x1:calendar-order xmlns:x1="http://apple.com/ns/ical/">0</x1:calendar-order>
+│  			<x1:calendar-color xmlns:x1="http://apple.com/ns/ical/"></x1:calendar-color>
+│  			<d:current-user-privilege-set>
+│  				<d:privilege><d:read/></d:privilege>
+│  				<d:privilege><d:write/></d:privilege>
+│  				<d:privilege><d:write-properties/></d:privilege>
+│  				<d:privilege><d:write-content/></d:privilege>
+│  				<d:privilege><cal:read-free-busy/></d:privilege>
+│  			</d:current-user-privilege-set>
+│  		</d:prop>
+│  		<d:status>HTTP/1.1 200 OK</d:status>
+│  	</d:propstat>
+│  </d:response><d:response>
+│  	<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cs:getctag>835bd60af310cfd5</cs:getctag>
+│  			<s:sync-token>835bd60af310cfd5</s:sync-token>
+│  			<cal:supported-calendar-compon
+│  …(truncated)
+└─
+I0303 20:56:09.124085   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:09.124639   37448 middleware.go:46] PROPFIND /caldav/user/calendars/default/                    207  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52649
+I0303 20:56:09.125190   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/default/ HTTP/1.1
+│  Brief: t
+│  Accept: */*
+│  Connection: keep-alive
+│  Content-Length: 181
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Depth: 0
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Language: de-DE,de;q=0.9
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (1951 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/default/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:displayname>Default Calendar</d:displayname>
+│  				<cal:calendar-description>schedio default calendar</cal:calendar-description>
+│  				<cal:supported-calendar-component-set>
+│  					<cal:comp name="VEVENT"/>
+│  				</cal:supported-calendar-component-set>
+│  				<cal:supported-calendar-data>
+│  					<cal:calendar-data content-type="text/calendar" version="2.0"/>
+│  				</cal:supported-calendar-data>
+│  				<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><cal:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:09.169240   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:09.169792   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:09.170333   37448 middleware.go:46] PROPFIND /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ 207  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52650
+I0303 20:56:09.170858   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ HTTP/1.1
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 181
+│  Accept-Encoding: gzip, deflate
+│  Brief: t
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  Accept-Language: de-DE,de;q=0.9
+│  Content-Type: text/xml
+│  Depth: 0
+│  Accept: */*
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (2016 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:displayname>Availability – Anna Müller</d:displayname>
+│  				<cal:calendar-description>Availability windows for staff@example.de</cal:calendar-description>
+│  				<cal:supported-calendar-component-set>
+│  					<cal:comp name="VEVENT"/>
+│  				</cal:supported-calendar-component-set>
+│  				<cal:supported-calendar-data>
+│  					<cal:calendar-data content-type="text/calendar" version="2.0"/>
+│  				</cal:supported-calendar-data>
+│  				<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><cal:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:09.216635   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:09.217189   37448 middleware.go:46] PROPFIND /caldav/user/calendars/default/                    207  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52651
+I0303 20:56:09.217730   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/default/ HTTP/1.1
+│  Content-Type: text/xml
+│  Brief: t
+│  Content-Length: 145
+│  Accept-Language: de-DE,de;q=0.9
+│  Depth: 1
+│  Accept: */*
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (145 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:getcontenttype/>
+│      <A:getetag/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (1951 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/default/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:displayname>Default Calendar</d:displayname>
+│  				<cal:calendar-description>schedio default calendar</cal:calendar-description>
+│  				<cal:supported-calendar-component-set>
+│  					<cal:comp name="VEVENT"/>
+│  				</cal:supported-calendar-component-set>
+│  				<cal:supported-calendar-data>
+│  					<cal:calendar-data content-type="text/calendar" version="2.0"/>
+│  				</cal:supported-calendar-data>
+│  				<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><cal:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:09.266099   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:09.266649   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:09.267192   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:09.267736   37448 middleware.go:46] PROPFIND /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ 207  3ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52652
+I0303 20:56:09.268288   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ HTTP/1.1
+│  Content-Type: text/xml
+│  Depth: 1
+│  Accept: */*
+│  Prefer: return=minimal
+│  Content-Length: 145
+│  Accept-Encoding: gzip, deflate
+│  Brief: t
+│  Connection: keep-alive
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Language: de-DE,de;q=0.9
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (145 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:getcontenttype/>
+│      <A:getetag/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (4092 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:displayname>Availability – Anna Müller</d:displayname>
+│  				<cal:calendar-description>Availability windows for staff@example.de</cal:calendar-description>
+│  				<cal:supported-calendar-component-set>
+│  					<cal:comp name="VEVENT"/>
+│  				</cal:supported-calendar-component-set>
+│  				<cal:supported-calendar-data>
+│  					<cal:calendar-data content-type="text/calendar" version="2.0"/>
+│  				</cal:supported-calendar-data>
+│  				<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><cal:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-morning-2026.ics</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:getetag>&#34;cc97fd864ec63c5c&#34;</d:getetag>
+│  				<d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-afternoon-2026.ics</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:getetag>&#34;910fa8946c2e29d5&#34;</d:getetag>
+│  				<d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-saturday-2026-03-07.ics</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:getetag>&#34;d7c5da11b25fb013&#34;</d:getetag>
+│  				<d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:09.316837   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:09.317908   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:09.318474   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:09.319023   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:09.319566   37448 middleware.go:46] REPORT   /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ 207  3ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52653
+I0303 20:56:09.320107   37448 middleware.go:79] 
+┌─ REQUEST  REPORT /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ HTTP/1.1
+│  Connection: keep-alive
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 728
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+├─ RESPONSE 207
+│  Content-Type: application/xml; charset="utf-8"
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+├─ REQ BODY (728 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <B:calendar-multiget xmlns:B="urn:ietf:params:xml:ns:caldav">
+│    <A:prop xmlns:A="DAV:">
+│      <A:getetag/>
+│      <B:calendar-data/>
+│      <B:schedule-tag/>
+│      <C:created-by xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:updated-by xmlns:C="http://calendarserver.org/ns/"/>
+│    </A:prop>
+│    <A:href xmlns:A="DAV:">/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-saturday-2026-03-07.ics</A:href>
+│    <A:href xmlns:A="DAV:">/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-afternoon-2026.ics</A:href>
+│    <A:href xmlns:A="DAV:">/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-morning-2026.ics</A:href>
+│  </B:calendar-multiget>
+│  
+├─ RSP BODY (3687 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <multistatus xmlns="DAV:"><response xmlns="DAV:"><href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-saturday-2026-03-07.ics</href><propstat xmlns="DAV:"><prop xmlns="DAV:"><getetag xmlns="DAV:">&#34;d7c5da11b25fb013&#34;</getetag><calendar-data xmlns="urn:ietf:params:xml:ns:caldav">BEGIN:VCALENDAR&#xD;&#xA;CALSCALE:GREGORIAN&#xD;&#xA;PRODID:-//schedio//schedio//EN&#xD;&#xA;VERSION:2.0&#xD;&#xA;BEGIN:VEVENT&#xD;&#xA;CREATED:20260303T195505Z&#xD;&#xA;DTEND:20260307T120000Z&#xD;&#xA;DTSTAMP:20260303T195505Z&#xD;&#xA;DTSTART:20260307T090000Z&#xD;&#xA;LAST-MODIFIED:20260303T195505Z&#xD;&#xA;ORGANIZER:mailto:&#xD;&#xA;SEQUENCE:0&#xD;&#xA;STATUS:CONFIRMED&#xD;&#xA;SUMMARY:Available&#xD;&#xA;TRANSP:OPAQUE&#xD;&#xA;UID:ts-anna-saturday-2026-03-07&#xD;&#xA;END:VEVENT&#xD;&#xA;END:VCALENDAR&#xD;&#xA;</calendar-data></prop><status>HTTP/1.1 200 OK</status></propstat><propstat xmlns="DAV:"><prop xmlns="DAV:"><schedule-tag xmlns="urn:ietf:params:xml:ns:caldav"></schedule-tag><created-by xmlns="http://calendarserver.org/ns/"></created-by><updated-by xmlns="http://calendarserver.org/ns/"></updated-by></prop><status>HTTP/1.1 404 Not Found</status></propstat></response><response xmlns="DAV:"><href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-afternoon-2026.ics</href><propstat xmlns="DAV:"><prop xmlns="DAV:"><getetag xmlns="DAV:">&#34;910fa8946c2e29d5&#34;</getetag><calendar-data xmlns="urn:ietf:params:xml:ns:caldav">BEGIN:VCALENDAR&#xD;&#xA;CALSCALE:GREGORIAN&#xD;&#xA;PRODID:-//schedio//schedio//EN&#xD;&#xA;VERSION:2.0&#xD;&#xA;BEGIN:VEVENT&#xD;&#xA;CREATED:20260303T195505Z&#xD;&#xA;DTEND:20260302T170000Z&#xD;&#xA;DTSTAMP:20260303T195505Z&#xD;&#xA;DTSTART:20260302T130000Z&#xD;&#xA;LAST-MODIFIED:20260303T195505Z&#xD;&#xA;ORGANIZER:mailto:&#xD;&#xA;RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;COUNT=260&#xD;&#xA;SEQUENCE:0&#xD;&#xA;STATUS:CONFIRMED&#xD;&#xA;SUMMARY:Available&#xD;&#xA;TRANSP:OPAQUE&#xD;&#xA;UID:ts-anna-afternoon-2026&#xD;&#xA;END:VEVENT&#xD;&#xA;END:VCALENDAR&#xD;&#xA;</calendar-data></prop><status>HTTP/1.1 200 OK</status></propstat><propstat xmlns="DAV:"><prop xmlns="DAV:"><schedule-tag xmlns="urn:ietf:params:xml:ns:caldav"></schedule-tag><created-by xmlns="http://calendarserver.org/ns/"></created-by><updated-by xmlns="http://calendarserver.org/ns/"></updated-by></prop><status>HTTP/1.1 404 Not Found</status></propstat></response><response xmlns="DAV:"><href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-morning-2026.ics</href><propstat xmlns="DAV:"><prop xmlns="DAV:"><getetag xmlns="DAV:">&#34;cc97fd864ec63c5c&#34;</getetag><calendar-data xmlns="urn:ietf:params:xml:ns:caldav">BEGIN:VCALENDAR&#xD;&#xA;CALSCALE:GREGORIAN&#xD;&#xA;PRODID:-//schedio//schedio//EN&#xD;&#xA;VERSION:2.0&#xD;&#xA;BEGIN:VEVENT&#xD;&#xA;CREATED:20260303T195505Z&#xD;&#xA;DTEND:20260302T120000Z&#xD;&#xA;DTSTAMP:20260303T195505Z&#xD;&#xA;DTSTART:20260302T080000Z&#xD;&#xA;LAST-MODIFIED:20260303T195505Z&#xD;&#xA;ORGANIZER:mailto:&#xD;&#xA;RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;COUNT=260&#xD;&#xA;SEQUENCE:0&#xD;&#xA;STATUS:CONFIRMED&#xD;&#xA;SUMMARY:Available&#xD;&#xA;TRANSP:OPAQUE&#xD;&#xA;UID:ts-anna-morning-2026&#xD;&#xA;END:VEVENT&#xD;&#xA;END:VCALENDAR&#xD;&#xA;</calendar-data></prop><status>HTTP/1.1 200 OK</status></propstat><propstat xmlns="DAV:"><prop xmlns="DAV:"><schedule-tag xmlns="urn:ietf:params:xml:ns:caldav"></schedule-tag><created-by xmlns="http://calendarserver.org/ns/"></created-by><updated-by xmlns="http://calendarserver.org/ns/"></updated-by></prop><status>HTTP/1.1 404 Not Found</status></propstat></response></multistatus>
+└─
+I0303 20:56:09.456541   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:09.457654   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:09.458176   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:09.458760   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:09.459298   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:09.459806   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:09.459843   37448 middleware.go:46] PROPFIND /caldav/user/inbox/                                207  3ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52654
+I0303 20:56:09.460387   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/inbox/ HTTP/1.1
+│  Content-Type: text/xml
+│  Accept: */*
+│  Connection: keep-alive
+│  Content-Length: 181
+│  Depth: 0
+│  Brief: t
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (552 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/inbox/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><c:schedule-inbox/></d:resourcetype>
+│  				<c:calendar-free-busy-set><d:href>/caldav/user/calendars/default/</d:href><d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href></c:calendar-free-busy-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:09.510387   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:09.510936   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:09.511485   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:09.512053   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:09.512053   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:09.512597   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:09.513138   37448 middleware.go:46] PROPFIND /caldav/user/inbox/                                207  3ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52655
+I0303 20:56:09.513689   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/inbox/ HTTP/1.1
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 145
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept: */*
+│  Connection: keep-alive
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Depth: 1
+│  Brief: t
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (145 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:getcontenttype/>
+│      <A:getetag/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (552 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/inbox/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><c:schedule-inbox/></d:resourcetype>
+│  				<c:calendar-free-busy-set><d:href>/caldav/user/calendars/default/</d:href><d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href></c:calendar-free-busy-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:09.825149   37448 middleware.go:46] PROPFIND /.well-known/caldav                                301  0s  [fe80::455:dc24:e3c5:4d14%Ethernet]:52656
+I0303 20:56:09.826336   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /.well-known/caldav HTTP/1.1
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Depth: 0
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 181
+│  Content-Type: text/xml
+│  Brief: t
+├─ RESPONSE 301
+│  Location: /caldav/
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:current-user-principal/>
+│      <A:principal-URL/>
+│      <A:resourcetype/>
+│    </A:prop>
+│  </A:propfind>
+│  
+└─
+I0303 20:56:09.831249   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:09.831840   37448 middleware.go:46] PROPFIND /caldav/                                           207  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52656
+I0303 20:56:09.832418   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/ HTTP/1.1
+│  Accept-Encoding: gzip, deflate
+│  Depth: 0
+│  Accept: */*
+│  Connection: keep-alive
+│  Accept-Language: de-DE,de;q=0.9
+│  Content-Type: text/xml
+│  Brief: t
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 181
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:current-user-principal/>
+│      <A:principal-URL/>
+│      <A:resourcetype/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (445 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+│    <d:response>
+│      <d:href>/caldav/</d:href>
+│      <d:propstat>
+│        <d:prop>
+│          <d:current-user-principal><d:href>/caldav/user/</d:href></d:current-user-principal>
+│          <d:resourcetype><d:collection/></d:resourcetype>
+│        </d:prop>
+│        <d:status>HTTP/1.1 200 OK</d:status>
+│      </d:propstat>
+│    </d:response>
+│  </d:multistatus>
+└─
+I0303 20:56:09.876118   37448 middleware.go:46] OPTIONS  /caldav/user/                                      204  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52657
+I0303 20:56:09.876677   37448 middleware.go:79] 
+┌─ REQUEST  OPTIONS /caldav/user/ HTTP/1.1
+│  Connection: keep-alive
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Language: de-DE,de;q=0.9
+│  Content-Length: 0
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 204
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Allow: OPTIONS, PROPFIND, REPORT, DELETE, MKCOL
+└─
+I0303 20:56:09.964684   37448 middleware.go:46] OPTIONS  /caldav/user/                                      204  0s  [fe80::455:dc24:e3c5:4d14%Ethernet]:52658
+I0303 20:56:09.965237   37448 middleware.go:79] 
+┌─ REQUEST  OPTIONS /caldav/user/ HTTP/1.1
+│  Content-Length: 0
+│  Accept-Encoding: gzip, deflate
+│  Connection: keep-alive
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Language: de-DE,de;q=0.9
+├─ RESPONSE 204
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Allow: OPTIONS, PROPFIND, REPORT, DELETE, MKCOL
+└─
+I0303 20:56:12.174393   37448 middleware.go:46] PROPFIND /.well-known/caldav                                301  0s  [fe80::455:dc24:e3c5:4d14%Ethernet]:52659
+I0303 20:56:12.175216   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /.well-known/caldav HTTP/1.1
+│  Accept: */*
+│  Connection: keep-alive
+│  Content-Length: 181
+│  Accept-Language: de-DE,de;q=0.9
+│  Brief: t
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) remindd/3900.1
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Depth: 0
+├─ RESPONSE 301
+│  Location: /caldav/
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:current-user-principal/>
+│      <A:principal-URL/>
+│      <A:resourcetype/>
+│    </A:prop>
+│  </A:propfind>
+│  
+└─
+I0303 20:56:12.176327   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:12.181439   37448 middleware.go:46] PROPFIND /caldav/                                           207  5ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52659
+I0303 20:56:12.196939   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/ HTTP/1.1
+│  Content-Type: text/xml
+│  Depth: 0
+│  Brief: t
+│  Accept: */*
+│  Connection: keep-alive
+│  Content-Length: 181
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) remindd/3900.1
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:current-user-principal/>
+│      <A:principal-URL/>
+│      <A:resourcetype/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (445 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+│    <d:response>
+│      <d:href>/caldav/</d:href>
+│      <d:propstat>
+│        <d:prop>
+│          <d:current-user-principal><d:href>/caldav/user/</d:href></d:current-user-principal>
+│          <d:resourcetype><d:collection/></d:resourcetype>
+│        </d:prop>
+│        <d:status>HTTP/1.1 200 OK</d:status>
+│      </d:propstat>
+│    </d:response>
+│  </d:multistatus>
+└─
+I0303 20:56:12.279382   37448 middleware.go:46] OPTIONS  /caldav/user/                                      204  0s  [fe80::455:dc24:e3c5:4d14%Ethernet]:52660
+I0303 20:56:12.279935   37448 middleware.go:79] 
+┌─ REQUEST  OPTIONS /caldav/user/ HTTP/1.1
+│  Connection: keep-alive
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) remindd/3900.1
+│  Accept-Language: de-DE,de;q=0.9
+│  Content-Length: 0
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 204
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Allow: OPTIONS, PROPFIND, REPORT, DELETE, MKCOL
+└─
+I0303 20:56:12.436261   37448 middleware.go:46] OPTIONS  /caldav/user/                                      204  0s  [fe80::455:dc24:e3c5:4d14%Ethernet]:52661
+I0303 20:56:12.436807   37448 middleware.go:79] 
+┌─ REQUEST  OPTIONS /caldav/user/ HTTP/1.1
+│  Connection: keep-alive
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) remindd/3900.1
+│  Accept-Language: de-DE,de;q=0.9
+│  Content-Length: 0
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 204
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Allow: OPTIONS, PROPFIND, REPORT, DELETE, MKCOL
+└─
+I0303 20:56:15.772174   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:15.772725   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:15.773276   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:15.773796   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:15.773823   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:15.774397   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:15.774947   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:15.775493   37448 middleware.go:46] PROPFIND /caldav/user/calendars/                            207  3ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52662
+I0303 20:56:15.776045   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/ HTTP/1.1
+│  Connection: keep-alive
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 2237
+│  Prefer: return=minimal
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Depth: 1
+│  Brief: t
+│  Accept: */*
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (2237 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:add-member/>
+│      <C:allowed-sharing-modes xmlns:C="http://calendarserver.org/ns/"/>
+│      <G:autoprovisioned xmlns:G="http://apple.com/ns/ical/"/>
+│      <E:bulk-requests xmlns:E="http://me.com/_namespace/"/>
+│      <B:calendar-alarm xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <G:calendar-color xmlns:G="http://apple.com/ns/ical/"/>
+│      <B:calendar-description xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:calendar-free-busy-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <G:calendar-order xmlns:G="http://apple.com/ns/ical/"/>
+│      <B:calendar-timezone xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:current-user-privilege-set/>
+│      <B:default-alarm-vevent-date xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:default-alarm-vevent-datetime xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:displayname/>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <G:language-code xmlns:G="http://apple.com/ns/ical/"/>
+│      <G:location-code xmlns:G="http://apple.com/ns/ical/"/>
+│      <B:max-attendees-per-instance xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:owner/>
+│      <C:pre-publish-url xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:publish-url xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:push-transports xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:pushkey xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:quota-available-bytes/>
+│      <A:quota-used-bytes/>
+│      <G:refreshrate xmlns:G="http://apple.com/ns/ical/"/>
+│      <A:resource-id/>
+│      <A:resourcetype/>
+│      <B:schedule-calendar-transp xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:schedule-default-calendar-URL xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <C:source xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-alarms xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-attachments xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-todos xmlns:C="http://calendarserver.org/ns/"/>
+│      <B:supported-calendar-component-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:supported-calendar-component-sets xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:supported-report-set/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (5693 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:s="http://sabredav.org/ns"><d:response>
+│  	<d:href>/caldav/user/calendars/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cal:schedule-default-calendar-URL><d:href>/caldav/user/calendars/default/</d:href></cal:schedule-default-calendar-URL>
+│  		</d:prop>
+│  		<d:status>HTTP/1.1 200 OK</d:status>
+│  	</d:propstat>
+│  </d:response><d:response>
+│  	<d:href>/caldav/user/calendars/default/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cs:getctag>669ee8512ec3972b</cs:getctag>
+│  			<s:sync-token>669ee8512ec3972b</s:sync-token>
+│  			<cal:supported-calendar-component-set>
+│  				<cal:comp name="VEVENT"/>
+│  			</cal:supported-calendar-component-set>
+│  			<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  			<d:displayname>Default Calendar</d:displayname>
+│  			<cal:calendar-description>schedio default calendar</cal:calendar-description>
+│  			<cal:calendar-timezone>UTC</cal:calendar-timezone>
+│  			<x1:calendar-order xmlns:x1="http://apple.com/ns/ical/">0</x1:calendar-order>
+│  			<x1:calendar-color xmlns:x1="http://apple.com/ns/ical/"></x1:calendar-color>
+│  			<d:current-user-privilege-set>
+│  				<d:privilege><d:read/></d:privilege>
+│  				<d:privilege><d:write/></d:privilege>
+│  				<d:privilege><d:write-properties/></d:privilege>
+│  				<d:privilege><d:write-content/></d:privilege>
+│  				<d:privilege><cal:read-free-busy/></d:privilege>
+│  			</d:current-user-privilege-set>
+│  		</d:prop>
+│  		<d:status>HTTP/1.1 200 OK</d:status>
+│  	</d:propstat>
+│  </d:response><d:response>
+│  	<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cs:getctag>835bd60af310cfd5</cs:getctag>
+│  			<s:sync-token>835bd60af310cfd5</s:sync-token>
+│  			<cal:supported-calendar-compon
+│  …(truncated)
+└─
+I0303 20:56:15.821988   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:15.822536   37448 middleware.go:46] PROPPATCH /caldav/user/calendars/default/                    207  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52663
+I0303 20:56:15.823081   37448 middleware.go:79] 
+┌─ REQUEST  PROPPATCH /caldav/user/calendars/default/ HTTP/1.1
+│  Content-Length: 228
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Connection: keep-alive
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (228 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propertyupdate xmlns:A="DAV:"><A:set><A:prop><G:calendar-color xmlns:G="http://apple.com/ns/ical/" symbolic-color="custom">#CB30E0</G:calendar-color></A:prop></A:set></A:propertyupdate>
+│  
+├─ RSP BODY (265 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:">
+│    <d:response>
+│      <d:href>/caldav/user/calendars/default/</d:href>
+│      <d:propstat>
+│        <d:prop/>
+│        <d:status>HTTP/1.1 200 OK</d:status>
+│      </d:propstat>
+│    </d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:15.875720   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:15.876280   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:15.877164   37448 availability_store.go:288] caldav/avail: PutEvent uid="ts-anna-morning-2026" EXDATE added=2026-03-02 08:00:00 +0000 UTC → removing orphaned override
+I0303 20:56:15.878638   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:15.879198   37448 middleware.go:46] PUT      /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-morning-2026.ics 201  3ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52664
+I0303 20:56:15.879754   37448 middleware.go:79] 
+┌─ REQUEST  PUT /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-morning-2026.ics HTTP/1.1
+│  Connection: keep-alive
+│  Accept: */*
+│  If-Match: "cc97fd864ec63c5c"
+│  Accept-Language: de-DE,de;q=0.9
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 460
+│  Content-Type: text/calendar; charset=utf-8
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 201
+│  Location: /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-morning-2026.ics
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Etag: "10d5ab6a50ef6e87"
+│  Last-Modified: Tue, 03 Mar 2026 19:56:15 GMT
+├─ REQ BODY (460 bytes)
+│  │  BEGIN:VCALENDAR
+│  CALSCALE:GREGORIAN
+│  PRODID:-//Apple Inc.//iPhone OS 26.3//EN
+│  VERSION:2.0
+│  BEGIN:VEVENT
+│  CREATED:20260303T195505Z
+│  DTEND:20260302T120000Z
+│  DTSTAMP:20260303T195615Z
+│  DTSTART:20260302T080000Z
+│  EXDATE:20260302T080000Z
+│  LAST-MODIFIED:20260303T195614Z
+│  ORGANIZER;EMAIL="":mailto:
+│  RRULE:FREQ=WEEKLY;COUNT=260;BYDAY=MO,TU,WE,TH,FR
+│  SEQUENCE:0
+│  STATUS:CONFIRMED
+│  SUMMARY:Available
+│  TRANSP:OPAQUE
+│  UID:ts-anna-morning-2026
+│  END:VEVENT
+│  END:VCALENDAR
+│  
+└─
+I0303 20:56:15.922599   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:15.927260   37448 middleware.go:46] PROPFIND /caldav/user/calendars/default/                    207  5ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52665
+I0303 20:56:15.927834   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/default/ HTTP/1.1
+│  Brief: t
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Depth: 0
+│  Accept: */*
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  Content-Length: 181
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (1951 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/default/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:displayname>Default Calendar</d:displayname>
+│  				<cal:calendar-description>schedio default calendar</cal:calendar-description>
+│  				<cal:supported-calendar-component-set>
+│  					<cal:comp name="VEVENT"/>
+│  				</cal:supported-calendar-component-set>
+│  				<cal:supported-calendar-data>
+│  					<cal:calendar-data content-type="text/calendar" version="2.0"/>
+│  				</cal:supported-calendar-data>
+│  				<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><cal:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:15.970397   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:15.970953   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:15.971501   37448 middleware.go:46] PROPFIND /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ 207  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52666
+I0303 20:56:15.972057   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ HTTP/1.1
+│  Content-Length: 181
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept: */*
+│  Prefer: return=minimal
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Depth: 0
+│  Brief: t
+│  Connection: keep-alive
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (2016 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:displayname>Availability – Anna Müller</d:displayname>
+│  				<cal:calendar-description>Availability windows for staff@example.de</cal:calendar-description>
+│  				<cal:supported-calendar-component-set>
+│  					<cal:comp name="VEVENT"/>
+│  				</cal:supported-calendar-component-set>
+│  				<cal:supported-calendar-data>
+│  					<cal:calendar-data content-type="text/calendar" version="2.0"/>
+│  				</cal:supported-calendar-data>
+│  				<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><cal:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:16.026262   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:16.026833   37448 middleware.go:46] PROPFIND /caldav/user/calendars/default/                    207  2ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52667
+I0303 20:56:16.027343   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/default/ HTTP/1.1
+│  Content-Type: text/xml
+│  Depth: 1
+│  Brief: t
+│  Accept: */*
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 145
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (145 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:getcontenttype/>
+│      <A:getetag/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (1951 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/default/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:displayname>Default Calendar</d:displayname>
+│  				<cal:calendar-description>schedio default calendar</cal:calendar-description>
+│  				<cal:supported-calendar-component-set>
+│  					<cal:comp name="VEVENT"/>
+│  				</cal:supported-calendar-component-set>
+│  				<cal:supported-calendar-data>
+│  					<cal:calendar-data content-type="text/calendar" version="2.0"/>
+│  				</cal:supported-calendar-data>
+│  				<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><cal:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:16.088216   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:16.088762   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:16.089312   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:16.089859   37448 middleware.go:46] PROPFIND /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ 207  2ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52668
+I0303 20:56:16.090404   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ HTTP/1.1
+│  Accept: */*
+│  Connection: keep-alive
+│  Accept-Language: de-DE,de;q=0.9
+│  Content-Type: text/xml
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 145
+│  Accept-Encoding: gzip, deflate
+│  Depth: 1
+│  Brief: t
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (145 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:getcontenttype/>
+│      <A:getetag/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (4092 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:displayname>Availability – Anna Müller</d:displayname>
+│  				<cal:calendar-description>Availability windows for staff@example.de</cal:calendar-description>
+│  				<cal:supported-calendar-component-set>
+│  					<cal:comp name="VEVENT"/>
+│  				</cal:supported-calendar-component-set>
+│  				<cal:supported-calendar-data>
+│  					<cal:calendar-data content-type="text/calendar" version="2.0"/>
+│  				</cal:supported-calendar-data>
+│  				<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><cal:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-morning-2026.ics</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:getetag>&#34;10d5ab6a50ef6e87&#34;</d:getetag>
+│  				<d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-afternoon-2026.ics</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:getetag>&#34;910fa8946c2e29d5&#34;</d:getetag>
+│  				<d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-saturday-2026-03-07.ics</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:getetag>&#34;d7c5da11b25fb013&#34;</d:getetag>
+│  				<d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:16.150777   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:16.151347   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:16.151894   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:16.151894   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:16.152437   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:16.152978   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:16.153533   37448 middleware.go:46] PROPFIND /caldav/user/inbox/                                207  3ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52669
+I0303 20:56:16.154088   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/inbox/ HTTP/1.1
+│  Content-Type: text/xml
+│  Accept: */*
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  Accept-Language: de-DE,de;q=0.9
+│  Depth: 0
+│  Brief: t
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 181
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (552 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/inbox/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><c:schedule-inbox/></d:resourcetype>
+│  				<c:calendar-free-busy-set><d:href>/caldav/user/calendars/default/</d:href><d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href></c:calendar-free-busy-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:16.205918   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:16.206468   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:16.207019   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:16.207019   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:16.207565   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:16.208118   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:16.208663   37448 middleware.go:46] PROPFIND /caldav/user/inbox/                                207  4ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52670
+I0303 20:56:16.209217   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/inbox/ HTTP/1.1
+│  Connection: keep-alive
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Depth: 1
+│  Accept: */*
+│  Prefer: return=minimal
+│  Content-Length: 145
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Brief: t
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (145 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:getcontenttype/>
+│      <A:getetag/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (552 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/inbox/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><c:schedule-inbox/></d:resourcetype>
+│  				<c:calendar-free-busy-set><d:href>/caldav/user/calendars/default/</d:href><d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href></c:calendar-free-busy-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:27.275851   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:27.276410   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:27.276957   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:27.277506   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:27.278058   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:27.278058   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:27.278585   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:27.279765   37448 middleware.go:46] PROPFIND /caldav/user/calendars/                            207  4ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52671
+I0303 20:56:27.280308   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/ HTTP/1.1
+│  Depth: 1
+│  Brief: t
+│  Accept: */*
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  Content-Length: 2237
+│  Accept-Language: de-DE,de;q=0.9
+│  Content-Type: text/xml
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (2237 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:add-member/>
+│      <C:allowed-sharing-modes xmlns:C="http://calendarserver.org/ns/"/>
+│      <G:autoprovisioned xmlns:G="http://apple.com/ns/ical/"/>
+│      <E:bulk-requests xmlns:E="http://me.com/_namespace/"/>
+│      <B:calendar-alarm xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <G:calendar-color xmlns:G="http://apple.com/ns/ical/"/>
+│      <B:calendar-description xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:calendar-free-busy-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <G:calendar-order xmlns:G="http://apple.com/ns/ical/"/>
+│      <B:calendar-timezone xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:current-user-privilege-set/>
+│      <B:default-alarm-vevent-date xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:default-alarm-vevent-datetime xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:displayname/>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <G:language-code xmlns:G="http://apple.com/ns/ical/"/>
+│      <G:location-code xmlns:G="http://apple.com/ns/ical/"/>
+│      <B:max-attendees-per-instance xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:owner/>
+│      <C:pre-publish-url xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:publish-url xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:push-transports xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:pushkey xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:quota-available-bytes/>
+│      <A:quota-used-bytes/>
+│      <G:refreshrate xmlns:G="http://apple.com/ns/ical/"/>
+│      <A:resource-id/>
+│      <A:resourcetype/>
+│      <B:schedule-calendar-transp xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:schedule-default-calendar-URL xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <C:source xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-alarms xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-attachments xmlns:C="http://calendarserver.org/ns/"/>
+│      <C:subscribed-strip-todos xmlns:C="http://calendarserver.org/ns/"/>
+│      <B:supported-calendar-component-set xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <B:supported-calendar-component-sets xmlns:B="urn:ietf:params:xml:ns:caldav"/>
+│      <A:supported-report-set/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (5693 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:s="http://sabredav.org/ns"><d:response>
+│  	<d:href>/caldav/user/calendars/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cal:schedule-default-calendar-URL><d:href>/caldav/user/calendars/default/</d:href></cal:schedule-default-calendar-URL>
+│  		</d:prop>
+│  		<d:status>HTTP/1.1 200 OK</d:status>
+│  	</d:propstat>
+│  </d:response><d:response>
+│  	<d:href>/caldav/user/calendars/default/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cs:getctag>669ee8512ec3972b</cs:getctag>
+│  			<s:sync-token>669ee8512ec3972b</s:sync-token>
+│  			<cal:supported-calendar-component-set>
+│  				<cal:comp name="VEVENT"/>
+│  			</cal:supported-calendar-component-set>
+│  			<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  			<d:displayname>Default Calendar</d:displayname>
+│  			<cal:calendar-description>schedio default calendar</cal:calendar-description>
+│  			<cal:calendar-timezone>UTC</cal:calendar-timezone>
+│  			<x1:calendar-order xmlns:x1="http://apple.com/ns/ical/">0</x1:calendar-order>
+│  			<x1:calendar-color xmlns:x1="http://apple.com/ns/ical/"></x1:calendar-color>
+│  			<d:current-user-privilege-set>
+│  				<d:privilege><d:read/></d:privilege>
+│  				<d:privilege><d:write/></d:privilege>
+│  				<d:privilege><d:write-properties/></d:privilege>
+│  				<d:privilege><d:write-content/></d:privilege>
+│  				<d:privilege><cal:read-free-busy/></d:privilege>
+│  			</d:current-user-privilege-set>
+│  		</d:prop>
+│  		<d:status>HTTP/1.1 200 OK</d:status>
+│  	</d:propstat>
+│  </d:response><d:response>
+│  	<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href>
+│  	<d:propstat>
+│  		<d:prop>
+│  			<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  			<d:supported-report-set>
+│  				<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  				<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  			</d:supported-report-set>
+│  			<cs:getctag>716d519102ece954</cs:getctag>
+│  			<s:sync-token>716d519102ece954</s:sync-token>
+│  			<cal:supported-calendar-compon
+│  …(truncated)
+└─
+I0303 20:56:27.337684   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:27.338253   37448 middleware.go:46] PROPPATCH /caldav/user/calendars/default/                    207  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52672
+I0303 20:56:27.338820   37448 middleware.go:79] 
+┌─ REQUEST  PROPPATCH /caldav/user/calendars/default/ HTTP/1.1
+│  Content-Type: text/xml
+│  Connection: keep-alive
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 228
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (228 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propertyupdate xmlns:A="DAV:"><A:set><A:prop><G:calendar-color xmlns:G="http://apple.com/ns/ical/" symbolic-color="custom">#CB30E0</G:calendar-color></A:prop></A:set></A:propertyupdate>
+│  
+├─ RSP BODY (265 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:">
+│    <d:response>
+│      <d:href>/caldav/user/calendars/default/</d:href>
+│      <d:propstat>
+│        <d:prop/>
+│        <d:status>HTTP/1.1 200 OK</d:status>
+│      </d:propstat>
+│    </d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:27.393784   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:27.394329   37448 middleware.go:46] PROPFIND /caldav/user/calendars/default/                    207  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52673
+I0303 20:56:27.394875   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/default/ HTTP/1.1
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Brief: t
+│  Accept: */*
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 181
+│  Content-Type: text/xml
+│  Depth: 0
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (1951 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/default/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:displayname>Default Calendar</d:displayname>
+│  				<cal:calendar-description>schedio default calendar</cal:calendar-description>
+│  				<cal:supported-calendar-component-set>
+│  					<cal:comp name="VEVENT"/>
+│  				</cal:supported-calendar-component-set>
+│  				<cal:supported-calendar-data>
+│  					<cal:calendar-data content-type="text/calendar" version="2.0"/>
+│  				</cal:supported-calendar-data>
+│  				<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><cal:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:27.439628   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:27.440191   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:27.440737   37448 availability_store.go:288] caldav/avail: PutEvent uid="ts-anna-morning-2026" EXDATE added=2026-03-03 08:00:00 +0000 UTC → removing orphaned override
+I0303 20:56:27.442378   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:27.442925   37448 middleware.go:46] PUT      /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-morning-2026.ics 201  3ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52674
+I0303 20:56:27.443491   37448 middleware.go:79] 
+┌─ REQUEST  PUT /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-morning-2026.ics HTTP/1.1
+│  Content-Type: text/calendar; charset=utf-8
+│  Accept-Encoding: gzip, deflate
+│  Accept: */*
+│  If-Match: "10d5ab6a50ef6e87"
+│  Content-Length: 485
+│  Connection: keep-alive
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Language: de-DE,de;q=0.9
+├─ RESPONSE 201
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Etag: "7e6ba9dd8bba634c"
+│  Last-Modified: Tue, 03 Mar 2026 19:56:27 GMT
+│  Location: /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-morning-2026.ics
+├─ REQ BODY (485 bytes)
+│  │  BEGIN:VCALENDAR
+│  CALSCALE:GREGORIAN
+│  PRODID:-//Apple Inc.//iPhone OS 26.3//EN
+│  VERSION:2.0
+│  BEGIN:VEVENT
+│  CREATED:20260303T195505Z
+│  DTEND:20260302T120000Z
+│  DTSTAMP:20260303T195626Z
+│  DTSTART:20260302T080000Z
+│  EXDATE:20260302T080000Z
+│  EXDATE:20260303T080000Z
+│  LAST-MODIFIED:20260303T195626Z
+│  ORGANIZER;EMAIL="":mailto:
+│  RRULE:FREQ=WEEKLY;COUNT=260;BYDAY=MO,TU,WE,TH,FR
+│  SEQUENCE:0
+│  STATUS:CONFIRMED
+│  SUMMARY:Available
+│  TRANSP:OPAQUE
+│  UID:ts-anna-morning-2026
+│  END:VEVENT
+│  END:VCALENDAR
+│  
+└─
+I0303 20:56:27.486240   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:27.486819   37448 middleware.go:46] PROPFIND /caldav/user/calendars/default/                    207  1ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52675
+I0303 20:56:27.487279   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/default/ HTTP/1.1
+│  Content-Type: text/xml
+│  Accept: */*
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Depth: 1
+│  Brief: t
+│  Connection: keep-alive
+│  Content-Length: 145
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (145 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:getcontenttype/>
+│      <A:getetag/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (1951 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/default/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:displayname>Default Calendar</d:displayname>
+│  				<cal:calendar-description>schedio default calendar</cal:calendar-description>
+│  				<cal:supported-calendar-component-set>
+│  					<cal:comp name="VEVENT"/>
+│  				</cal:supported-calendar-component-set>
+│  				<cal:supported-calendar-data>
+│  					<cal:calendar-data content-type="text/calendar" version="2.0"/>
+│  				</cal:supported-calendar-data>
+│  				<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><cal:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:27.547963   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:27.548516   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:27.549075   37448 middleware.go:46] PROPFIND /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ 207  2ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52676
+I0303 20:56:27.549618   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ HTTP/1.1
+│  Content-Type: text/xml
+│  Connection: keep-alive
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 181
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Depth: 0
+│  Brief: t
+│  Accept: */*
+│  Prefer: return=minimal
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (2016 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:displayname>Availability – Anna Müller</d:displayname>
+│  				<cal:calendar-description>Availability windows for staff@example.de</cal:calendar-description>
+│  				<cal:supported-calendar-component-set>
+│  					<cal:comp name="VEVENT"/>
+│  				</cal:supported-calendar-component-set>
+│  				<cal:supported-calendar-data>
+│  					<cal:calendar-data content-type="text/calendar" version="2.0"/>
+│  				</cal:supported-calendar-data>
+│  				<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><cal:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:27.607358   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:27.607919   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:27.608472   37448 availability_store.go:90] caldav/avail: canAccessAvailCal ownerID="u0000000-0000-4000-8000-000000000001" principal="staff@example.de" role=staff → true
+I0303 20:56:27.609023   37448 middleware.go:46] PROPFIND /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ 207  2ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52677
+I0303 20:56:27.609582   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ HTTP/1.1
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Depth: 1
+│  Content-Length: 145
+│  Accept-Language: de-DE,de;q=0.9
+│  Brief: t
+│  Accept: */*
+│  Connection: keep-alive
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (145 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:getcontenttype/>
+│      <A:getetag/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (4092 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><cal:calendar/></d:resourcetype>
+│  				<d:supported-report-set>
+│  					<d:supported-report><d:report><d:expand-property/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-match/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-property-search/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:principal-search-property-set/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><d:sync-collection/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-multiget/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
+│  					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
+│  				</d:supported-report-set>
+│  				<d:displayname>Availability – Anna Müller</d:displayname>
+│  				<cal:calendar-description>Availability windows for staff@example.de</cal:calendar-description>
+│  				<cal:supported-calendar-component-set>
+│  					<cal:comp name="VEVENT"/>
+│  				</cal:supported-calendar-component-set>
+│  				<cal:supported-calendar-data>
+│  					<cal:calendar-data content-type="text/calendar" version="2.0"/>
+│  				</cal:supported-calendar-data>
+│  				<cal:schedule-calendar-transp><cal:opaque/></cal:schedule-calendar-transp>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><cal:read-free-busy/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-morning-2026.ics</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:getetag>&#34;7e6ba9dd8bba634c&#34;</d:getetag>
+│  				<d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-afternoon-2026.ics</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:getetag>&#34;910fa8946c2e29d5&#34;</d:getetag>
+│  				<d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  	<d:response>
+│  		<d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/ts-anna-saturday-2026-03-07.ics</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:getetag>&#34;d7c5da11b25fb013&#34;</d:getetag>
+│  				<d:getcontenttype>text/calendar; charset=utf-8</d:getcontenttype>
+│  				<d:current-user-privilege-set>
+│  					<d:privilege><d:read/></d:privilege>
+│  					<d:privilege><d:write/></d:privilege>
+│  					<d:privilege><d:write-properties/></d:privilege>
+│  					<d:privilege><d:write-content/></d:privilege>
+│  					<d:privilege><d:read-current-user-privilege-set/></d:privilege>
+│  				</d:current-user-privilege-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:27.676023   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:27.676576   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:27.677122   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:27.677122   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:27.677670   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:27.678225   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:27.678778   37448 middleware.go:46] PROPFIND /caldav/user/inbox/                                207  4ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52678
+I0303 20:56:27.679307   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/inbox/ HTTP/1.1
+│  Depth: 0
+│  Brief: t
+│  Accept: */*
+│  Accept-Language: de-DE,de;q=0.9
+│  Connection: keep-alive
+│  Prefer: return=minimal
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 181
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (181 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <C:getctag xmlns:C="http://calendarserver.org/ns/"/>
+│      <A:sync-token/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (552 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/inbox/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><c:schedule-inbox/></d:resourcetype>
+│  				<c:calendar-free-busy-set><d:href>/caldav/user/calendars/default/</d:href><d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href></c:calendar-free-busy-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─
+I0303 20:56:27.736018   37448 principal.go:48] caldav/noauth: injecting principal "staff@example.de" (no credentials required)
+I0303 20:56:27.736569   37448 availability_store.go:102] caldav/avail: viewableAvailCalendars: principal="staff@example.de" role=staff id="u0000000-0000-4000-8000-000000000001"
+I0303 20:56:27.737137   37448 availability_store.go:116] caldav/avail: viewableAvailCalendars: staff → 1 avail calendar (own)
+I0303 20:56:27.737137   37448 availability_store.go:188] caldav/avail: ListCalendars: base=1 avail=1 total=2
+I0303 20:56:27.737693   37448 availability_store.go:190]   calendar id="default" name="Default Calendar"
+I0303 20:56:27.738249   37448 availability_store.go:190]   calendar id="avail-u0000000-0000-4000-8000-000000000001" name="Availability – Anna Müller"
+I0303 20:56:27.738871   37448 middleware.go:46] PROPFIND /caldav/user/inbox/                                207  4ms  [fe80::455:dc24:e3c5:4d14%Ethernet]:52679
+I0303 20:56:27.739422   37448 middleware.go:79] 
+┌─ REQUEST  PROPFIND /caldav/user/inbox/ HTTP/1.1
+│  User-Agent: iOS/26.3 (23D127) dataaccessd/1.0
+│  Content-Length: 145
+│  Accept-Language: de-DE,de;q=0.9
+│  Accept-Encoding: gzip, deflate
+│  Content-Type: text/xml
+│  Depth: 1
+│  Accept: */*
+│  Prefer: return=minimal
+│  Brief: t
+│  Connection: keep-alive
+├─ RESPONSE 207
+│  Dav: 1, 2, calendar-access, calendar-auto-schedule
+│  Content-Type: application/xml; charset=utf-8
+├─ REQ BODY (145 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <A:propfind xmlns:A="DAV:">
+│    <A:prop>
+│      <A:getcontenttype/>
+│      <A:getetag/>
+│    </A:prop>
+│  </A:propfind>
+│  
+├─ RSP BODY (552 bytes)
+│  │  <?xml version="1.0" encoding="UTF-8"?>
+│  <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+│  	<d:response>
+│  		<d:href>/caldav/user/inbox/</d:href>
+│  		<d:propstat>
+│  			<d:prop>
+│  				<d:resourcetype><d:collection/><c:schedule-inbox/></d:resourcetype>
+│  				<c:calendar-free-busy-set><d:href>/caldav/user/calendars/default/</d:href><d:href>/caldav/user/calendars/avail-u0000000-0000-4000-8000-000000000001/</d:href></c:calendar-free-busy-set>
+│  			</d:prop>
+│  			<d:status>HTTP/1.1 200 OK</d:status>
+│  		</d:propstat>
+│  	</d:response>
+│  </d:multistatus>
+│  
+└─

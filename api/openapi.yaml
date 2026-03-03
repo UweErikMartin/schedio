@@ -102,15 +102,16 @@ paths:
         {
           "months": {
             "2026-03": {
-              "2026-03-15": ["09:00", "09:15", "09:30"],
-              "2026-03-16": ["10:00", "10:30"]
+              "2026-03-15": ["2026-03-15T09:00:00Z", "2026-03-15T09:15:00Z"],
+              "2026-03-16": ["2026-03-16T10:00:00Z", "2026-03-16T10:30:00Z"]
             }
           }
         }
         ```
 
-        Time strings are `HH:mm` values in UTC. Days with no available slots
-        are omitted.
+        Slot values are RFC 3339 UTC timestamps (e.g. `2026-03-15T09:00:00Z`).
+        Clients must convert them to the user's local timezone for display.
+        Days with no available slots are omitted.
       parameters:
         - name: service_id
           in: query
@@ -146,14 +147,14 @@ paths:
                   value:
                     months:
                       "2026-03":
-                        "2026-03-15": ["09:00", "09:15", "09:30", "10:00"]
-                        "2026-03-16": ["10:00", "10:30"]
+                        "2026-03-15": ["2026-03-15T09:00:00Z", "2026-03-15T09:15:00Z", "2026-03-15T09:30:00Z", "2026-03-15T10:00:00Z"]
+                        "2026-03-16": ["2026-03-16T10:00:00Z", "2026-03-16T10:30:00Z"]
                 day:
                   summary: Single-day query result
                   value:
                     months:
                       "2026-03":
-                        "2026-03-15": ["09:00", "09:15", "09:30"]
+                        "2026-03-15": ["2026-03-15T09:00:00Z", "2026-03-15T09:15:00Z", "2026-03-15T09:30:00Z"]
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -1103,14 +1104,14 @@ components:
             type: object
             description: |
               Map of ISO-8601 date (`YYYY-MM-DD`) → list of available start
-              times in `HH:mm` (local business timezone). Days with no
-              available slots are omitted entirely.
+              times as RFC 3339 UTC timestamps. Days with no available slots
+              are omitted entirely.
             additionalProperties:
               type: array
               items:
                 type: string
-                pattern: '^\d{2}:\d{2}$'
-                example: '09:15'
+                format: date-time
+                example: '2026-03-15T09:15:00Z'
 
     TimeSlot:
       type: object

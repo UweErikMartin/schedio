@@ -139,9 +139,22 @@ type DomainStore interface {
 	UpsertTimeslot(ctx context.Context, t *Timeslot) error
 
 	// DeleteTimeslot removes the Timeslot identified by its CalDAV UID.
+	// For a series root (RecurrenceID == zero) this removes only the root
+	// record; call DeleteTimeslotOverrides separately to cascade to overrides.
 	// Returns ErrNotFound when the UID does not exist or belongs to a
 	// different user.
 	DeleteTimeslot(ctx context.Context, userID, uid string) error
+
+	// DeleteTimeslotOverride removes the single override record identified by
+	// (userID, uid, recurrenceID). Returns ErrNotFound when no matching
+	// override exists.
+	DeleteTimeslotOverride(ctx context.Context, userID, uid string, recurrenceID time.Time) error
+
+	// DeleteTimeslotOverrides removes all override records whose CalDAVUID
+	// equals uid and whose RecurrenceID is non-zero. This is the cascade
+	// step used when deleting a recurring series root (CDV-TS-2 Case B).
+	// Returns nil (not ErrNotFound) when no overrides exist.
+	DeleteTimeslotOverrides(ctx context.Context, userID, uid string) error
 
 	// ── Contacts ─────────────────────────────────────────────────────────
 

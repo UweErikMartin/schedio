@@ -53,6 +53,8 @@ type Service struct {
 // Timeslot is an availability window managed by a staff user via CalDAV.
 // A recurring event is represented by a single Timeslot with a non-empty RRule.
 // Individual overrides of a recurring series carry a non-zero RecurrenceID.
+// The composite key (UserID, CalDAVUID, RecurrenceID) uniquely identifies each
+// record; series roots have a zero RecurrenceID.
 type Timeslot struct {
 	ID           string
 	UserID       string    // FK → User (must be role = "staff")
@@ -62,8 +64,11 @@ type Timeslot struct {
 	EndAt        time.Time // always stored in UTC
 	RRule        string    // iCal RRULE value; empty for single events
 	RecurrenceID time.Time // non-zero for overrides of a recurring series
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// ExDates lists occurrence start-times (UTC) excluded from the series
+	// (iCal EXDATE). Non-empty only on the series root; zero on overrides.
+	ExDates   []time.Time
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // Contact holds a customer's personal details. A single Contact may be

@@ -42,9 +42,12 @@ func NewAvailabilityService(st store.DomainStore) *AvailabilityService {
 //  1. Load the service to get DurationMinutes and DailyLimit.
 //  2. List all staff members.
 //  3. For each staff member list their timeslots that overlap the given day.
-//  4. For each timeslot enumerate candidate slots (aligned to 15-minute grid).
-//  5. For each candidate call ListActiveBookingsInWindow to subtract booked windows.
+//  4. For each timeslot: skip if service duration exceeds the timeslot window.
+//  5. Check whether the timeslot start window is already booked.
 //  6. Apply daily-limit: count confirmed+reserved bookings for the day against limit.
+//
+// Each timeslot produces at most one booking slot. The slot start time is the
+// timeslot's StartAt; the slot end time is StartAt + service duration.
 func (svc *AvailabilityService) ListAvailable(ctx context.Context, serviceID string, date time.Time) ([]Slot, error) {
 	service, err := svc.store.GetService(ctx, serviceID)
 	if err != nil {
@@ -74,22 +77,23 @@ func (svc *AvailabilityService) ListAvailable(ctx context.Context, serviceID str
 			return nil, err
 		}
 		for _, ts := range timeslots {
-			// Enumerate grid-aligned candidate start times within this timeslot.
-			candidates := enumerateCandidates(ts.StartAt, ts.EndAt, duration)
-			for _, start := range candidates {
-				end := start.Add(duration)
-				busy, err := svc.store.ListActiveBookingsInWindow(ctx, member.ID, start, end)
-				if err != nil {
-					return nil, err
-				}
-				if len(busy) > 0 {
-					continue // window already booked
-				}
-				if service.DailyLimit > 0 && activeToday >= service.DailyLimit {
-					continue // daily limit reached
-				}
-				slots = append(slots, Slot{StartAt: start, EndAt: end, UserID: member.ID})
+			// Skip timeslots that are too short for the service.
+			if duration > ts.EndAt.Sub(ts.StartAt) {
+				continue
 			}
+			start := ts.StartAt
+			end := start.Add(duration)
+			busy, err := svc.store.ListActiveBookingsInWindow(ctx, member.ID, start, end)
+			if err != nil {
+				return nil, err
+			}
+			if len(busy) > 0 {
+				continue // timeslot already booked
+			}
+			if service.DailyLimit > 0 && activeToday >= service.DailyLimit {
+				continue // daily limit reached
+			}
+			slots = append(slots, Slot{StartAt: start, EndAt: end, UserID: member.ID})
 		}
 	}
 	return slots, nil
@@ -111,31 +115,6 @@ func (svc *AvailabilityService) ListAvailableForDateRange(ctx context.Context, s
 		}
 	}
 	return result, nil
-}
-
-// enumerateCandidates returns all duration-aligned start times within
-// [windowStart, windowEnd) such that start + duration ≤ windowEnd.
-// Consecutive slots are spaced exactly one service-duration apart so they
-// never overlap; the first slot is snapped up to the nearest duration boundary.
-func enumerateCandidates(windowStart, windowEnd time.Time, duration time.Duration) []time.Time {
-	// Step equals the service duration — no overlapping appointments.
-	first := snapUp(windowStart, duration)
-	var out []time.Time
-	for t := first; !t.Add(duration).After(windowEnd); t = t.Add(duration) {
-		out = append(out, t)
-	}
-	return out
-}
-
-// snapUp rounds t up to the nearest multiple of grid.
-func snapUp(t time.Time, grid time.Duration) time.Time {
-	unix := t.UnixNano()
-	g := int64(grid)
-	rem := unix % g
-	if rem == 0 {
-		return t
-	}
-	return t.Add(time.Duration(g - rem))
 }
 
 // truncateToDay returns the start of the UTC calendar day containing t.

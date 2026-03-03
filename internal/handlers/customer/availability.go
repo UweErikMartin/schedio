@@ -21,12 +21,13 @@ import (
 //	{
 //	  "months": {
 //	    "YYYY-MM": {
-//	      "YYYY-MM-DD": ["HH:mm", "HH:mm", …]
+//	      "YYYY-MM-DD": ["2026-03-02T08:00:00Z", …]
 //	    }
 //	  }
 //	}
 //
-// Days with no available slots are omitted. Times are UTC (HH:mm).
+// Days with no available slots are omitted. Times are RFC 3339 UTC timestamps;
+// the client converts them to the browser's local timezone.
 type availabilityResponse struct {
 	Months map[string]map[string][]string `json:"months"`
 }
@@ -101,14 +102,14 @@ func (h *AvailabilityHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Build the response: convert []domain.Slot → []string ("HH:mm"), dedup,
+	// Build the response: convert []domain.Slot → []string (RFC 3339 UTC), dedup,
 	// and sort within each day.
 	dayMap := make(map[string][]string, len(daySlots))
 	for dateKey, slots := range daySlots {
 		seen := make(map[string]struct{}, len(slots))
 		var times []string
 		for _, s := range slots {
-			t := s.StartAt.UTC().Format("15:04")
+			t := s.StartAt.UTC().Format(time.RFC3339)
 			if _, dup := seen[t]; dup {
 				continue
 			}

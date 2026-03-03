@@ -222,14 +222,16 @@ func (a *storeAdapter) PutCalendarObject(ctx context.Context, path string, cal *
 	if calID == "" || eventID == "" {
 		return nil, webdav.NewHTTPError(http.StatusBadRequest, fmt.Errorf("invalid path: %s", path))
 	}
-	e, err := a.icalToEvent(calID, eventID, cal)
+	events, err := a.icalToEvents(calID, eventID, cal)
 	if err != nil {
 		return nil, webdav.NewHTTPError(http.StatusBadRequest, err)
 	}
 	if opts != nil {
+		// Apply conditional checks against the primary object (first event).
+		primaryID := events[0].ID
 		// If-None-Match: * → the client wants a create, fail if event exists.
 		if opts.IfNoneMatch.IsSet() {
-			if _, getErr := a.store.GetEvent(ctx, calID, e.ID); getErr == nil {
+			if _, getErr := a.store.GetEvent(ctx, calID, primaryID); getErr == nil {
 				return nil, webdav.NewHTTPError(http.StatusPreconditionFailed,
 					fmt.Errorf("calendar object already exists"))
 			}
@@ -237,15 +239,17 @@ func (a *storeAdapter) PutCalendarObject(ctx context.Context, path string, cal *
 		// If-Match: etag → the client sends its current version; store checks it.
 		if opts.IfMatch.IsSet() && !opts.IfMatch.IsWildcard() {
 			if etag, etagErr := opts.IfMatch.ETag(); etagErr == nil {
-				e.ETag = etag
+				events[0].ETag = etag
 			}
 		}
 	}
-	if err := a.store.PutEvent(ctx, e); err != nil {
-		return nil, mapStoreErr(err)
+	for _, e := range events {
+		if err := a.store.PutEvent(ctx, e); err != nil {
+			return nil, mapStoreErr(err)
+		}
 	}
-	// Re-fetch to return the server-assigned ETag.
-	updated, err := a.store.GetEvent(ctx, calID, e.ID)
+	// Re-fetch the primary event to return the server-assigned ETag.
+	updated, err := a.store.GetEvent(ctx, calID, events[0].ID)
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +335,16 @@ func (a *storeAdapter) eventToObject(e *calstore.Event) extcaldav.CalendarObject
 	if !e.RecurrenceID.IsZero() {
 		vevent.Props.SetDateTime(ical.PropRecurrenceID, e.RecurrenceID)
 	}
-
+	// Serialise EXDATE: one property line per excluded occurrence (RFC 5545
+	// §3.8.5.1). One-per-line is safest for cross-client compatibility.
+	for _, ex := range e.ExDates {
+		exProp := ical.NewProp("EXDATE")
+		exProp.Params.Set(ical.ParamValue, "DATE-TIME")
+		exProp.Value = ex.UTC().Format("20060102T150405Z")
+		vevent.Props.Add(exProp)
+	}
+	// Only emit ORGANIZER when an email address is actually set; omitting the
+	// property for server-generated events avoids echoing back "mailto:" blanks.
 	if e.Organizer.Email != "" {
 		prop := ical.NewProp(ical.PropOrganizer)
 		prop.Value = "mailto:" + e.Organizer.Email
@@ -365,14 +378,30 @@ func (a *storeAdapter) eventToObject(e *calstore.Event) extcaldav.CalendarObject
 	}
 }
 
-// icalToEvent converts an *ical.Calendar received via PUT into an internal Event.
-func (a *storeAdapter) icalToEvent(calID, fallbackEventID string, cal *ical.Calendar) (*calstore.Event, error) {
-	events := cal.Events()
-	if len(events) == 0 {
+// icalToEvents converts all VEVENTs in an *ical.Calendar received via PUT into
+// a slice of internal Events. The first entry is always the series root or a
+// single event. Subsequent entries (if any) are override instances (those have
+// a non-zero RECURRENCE-ID). EXDATE properties on the series root are collected
+// into Event.ExDates.
+func (a *storeAdapter) icalToEvents(calID, fallbackEventID string, cal *ical.Calendar) ([]*calstore.Event, error) {
+	vevents := cal.Events()
+	if len(vevents) == 0 {
 		return nil, fmt.Errorf("no VEVENT component in calendar data")
 	}
-	iev := events[0]
+	result := make([]*calstore.Event, 0, len(vevents))
+	for i := range vevents {
+		e, err := a.veventToEvent(calID, fallbackEventID, &vevents[i])
+		if err != nil {
+			return nil, fmt.Errorf("VEVENT %d: %w", i, err)
+		}
+		result = append(result, e)
+	}
+	return result, nil
+}
 
+// veventToEvent converts a single *ical.Event into an internal
+// Event. It is the per-component workhorse called by icalToEvents.
+func (a *storeAdapter) veventToEvent(calID, fallbackEventID string, iev *ical.Event) (*calstore.Event, error) {
 	e := &calstore.Event{
 		CalendarID: calID,
 		Status:     calstore.StatusConfirmed,
@@ -423,6 +452,31 @@ func (a *storeAdapter) icalToEvent(calID, fallbackEventID string, cal *ical.Cale
 	}
 	if recID := iev.Props.Get(ical.PropRecurrenceID); recID != nil {
 		e.RecurrenceID, _ = recID.DateTime(time.UTC)
+	}
+
+	// Parse EXDATE properties. Each property may carry a comma-separated list
+	// of DATE-TIME values (RFC 5545 §3.8.5.1). Collect them all into ExDates.
+	for _, p := range iev.Props.Values("EXDATE") {
+		// Values can be comma-separated within a single EXDATE property.
+		for _, v := range strings.Split(p.Value, ",") {
+			v = strings.TrimSpace(v)
+			if v == "" {
+				continue
+			}
+			// Try common DATE-TIME formats.
+			if t, parseErr := time.Parse("20060102T150405Z", v); parseErr == nil {
+				e.ExDates = append(e.ExDates, t.UTC())
+				continue
+			}
+			if t, parseErr := time.Parse("20060102T150405", v); parseErr == nil {
+				e.ExDates = append(e.ExDates, t.UTC())
+				continue
+			}
+			// DATE-only EXDATE (all-day series).
+			if t, parseErr := time.Parse("20060102", v); parseErr == nil {
+				e.ExDates = append(e.ExDates, t.UTC())
+			}
+		}
 	}
 
 	return e, nil

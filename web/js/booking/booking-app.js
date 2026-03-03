@@ -521,15 +521,22 @@ export class BookingApp extends HTMLElement {
 	 * @returns {string} RFC 3339 UTC start datetime, e.g. "2026-03-02T08:00:00Z"
 	 */
 	#buildStartISO() {
-		// selectedDate: "2026-03-02", selectedTime: "08:00"
-		return `${this.#selectedDate}T${this.#selectedTime}:00Z`;
+		// selectedDate and selectedTime are in the browser's local timezone.
+		// Parse them as local time and convert to a UTC ISO-8601 string.
+		const [year, month, day] = this.#selectedDate.split('-').map(Number);
+		const [hour, minute] = this.#selectedTime.split(':').map(Number);
+		const d = new Date(year, month - 1, day, hour, minute, 0);
+		return d.toISOString().replace(/\.\d+Z$/, 'Z');
 	}
 
 	/** @returns {string} Human-readable appointment label */
 	#formatDateLabel() {
 		if (!this.#selectedDate || !this.#selectedTime) return 'den gewählten Termin';
 		try {
-			const d = new Date(`${this.#selectedDate}T${this.#selectedTime}:00Z`);
+			// selectedDate/selectedTime are local values – construct directly as local time.
+			const [year, month, day] = this.#selectedDate.split('-').map(Number);
+			const [hour, minute] = this.#selectedTime.split(':').map(Number);
+			const d = new Date(year, month - 1, day, hour, minute, 0);
 			const locale = navigator.languages?.[0] ?? navigator.language ?? 'de-DE';
 			const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 			return d.toLocaleString(locale, {

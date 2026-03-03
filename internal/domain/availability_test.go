@@ -74,6 +74,10 @@ func (s *availStub) GetTimeslot(_ context.Context, _, _ string) (*store.Timeslot
 }
 func (s *availStub) UpsertTimeslot(_ context.Context, _ *store.Timeslot) error { return nil }
 func (s *availStub) DeleteTimeslot(_ context.Context, _, _ string) error       { return nil }
+func (s *availStub) DeleteTimeslotOverride(_ context.Context, _, _ string, _ time.Time) error {
+	return nil
+}
+func (s *availStub) DeleteTimeslotOverrides(_ context.Context, _, _ string) error { return nil }
 func (s *availStub) GetOrCreateContact(_ context.Context, _ string, c *store.Contact) (*store.Contact, error) {
 	return c, nil
 }
@@ -142,27 +146,6 @@ func slotTimes(slots []Slot) []string {
 
 // ── unit tests: pure functions ─────────────────────────────────────────────────
 
-func TestSnapUp(t *testing.T) {
-	grid := 15 * time.Minute
-	tests := []struct {
-		in   time.Time
-		want time.Time
-	}{
-		{hm(8, 0), hm(8, 0)},   // already on boundary
-		{hm(8, 1), hm(8, 15)},  // 1 min past → snap to :15
-		{hm(8, 14), hm(8, 15)}, // 14 min past → snap to :15
-		{hm(8, 15), hm(8, 15)}, // exact boundary
-		{hm(8, 16), hm(8, 30)}, // just past :15 → :30
-		{hm(8, 59), hm(9, 0)},  // almost next hour
-	}
-	for _, tc := range tests {
-		got := snapUp(tc.in, grid)
-		if !got.Equal(tc.want) {
-			t.Errorf("snapUp(%v) = %v, want %v", tc.in, got, tc.want)
-		}
-	}
-}
-
 func TestTruncateToDay(t *testing.T) {
 	tests := []struct {
 		in   time.Time
@@ -208,75 +191,6 @@ func TestCountActiveBookings(t *testing.T) {
 	}
 	if got := countActiveBookings(nil, svcA); got != 0 {
 		t.Errorf("countActiveBookings(nil) = %d, want 0", got)
-	}
-}
-
-func TestEnumerateCandidates(t *testing.T) {
-	tests := []struct {
-		name      string
-		start     time.Time
-		end       time.Time
-		duration  time.Duration
-		wantTimes []string // "HH:mm"
-	}{
-		{
-			name:      "exact fit — one slot",
-			start:     hm(8, 0),
-			end:       hm(9, 0),
-			duration:  60 * time.Minute,
-			wantTimes: []string{"08:00"},
-		},
-		{
-			name:     "four-hour window 60min duration — 4 candidates on duration grid",
-			start:    hm(8, 0),
-			end:      hm(12, 0),
-			duration: 60 * time.Minute,
-			// 08:00, 09:00, 10:00, 11:00 (step = duration = 60 min)
-			wantTimes: []string{"08:00", "09:00", "10:00", "11:00"},
-		},
-		{
-			name:      "window too narrow — no slots",
-			start:     hm(8, 0),
-			end:       hm(8, 30),
-			duration:  60 * time.Minute,
-			wantTimes: nil,
-		},
-		{
-			name:     "non-aligned start snapped up — 08:05 snaps to 09:00 on 60-min grid",
-			start:    hm(8, 5),
-			end:      hm(12, 0),
-			duration: 60 * time.Minute,
-			// snapUp(08:05, 60min) = 09:00 (next whole hour); then 09:00, 10:00, 11:00
-			wantTimes: []string{"09:00", "10:00", "11:00"},
-		},
-		{
-			name:     "30-minute duration — 8 slots at 30-min steps, last at 11:30",
-			start:    hm(8, 0),
-			end:      hm(12, 0),
-			duration: 30 * time.Minute,
-			// step = 30 min: 08:00, 08:30, 09:00, 09:30, 10:00, 10:30, 11:00, 11:30
-			wantTimes: []string{"08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30"},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := enumerateCandidates(tc.start, tc.end, tc.duration)
-			if len(got) != len(tc.wantTimes) {
-				var gotS []string
-				for _, g := range got {
-					gotS = append(gotS, g.UTC().Format("15:04"))
-				}
-				t.Fatalf("got %d candidates %v, want %d %v",
-					len(got), gotS, len(tc.wantTimes), tc.wantTimes)
-			}
-			for i, g := range got {
-				if g.UTC().Format("15:04") != tc.wantTimes[i] {
-					t.Errorf("candidate[%d] = %s, want %s",
-						i, g.UTC().Format("15:04"), tc.wantTimes[i])
-				}
-			}
-		})
 	}
 }
 
@@ -357,39 +271,76 @@ func TestListAvailable_NoTimeslots(t *testing.T) {
 }
 
 func TestListAvailable_BasicSlots(t *testing.T) {
-	// 08:00–10:00 window, 60-min service, no bookings → 5 candidates
-	// 08:00, 08:15, 08:30, 08:45, 09:00 (all fit within 10:00)
+	// Single timeslot 08:00–09:00, 60-min service → one slot at 08:00.
 	svc := NewAvailabilityService(&availStub{
 		getService: func(id string) (*store.Service, error) {
 			return defaultService(60, 0), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
 		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 10, 0)}, nil
+			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
 		},
 	})
 	slots, err := svc.ListAvailable(context.Background(), testSvcID, testDay)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Candidates: 08:00..09:00 inclusive on 15-min grid where start+60 ≤ 10:00
-	want := []string{"08:00", "09:00"}
+	want := []string{"08:00"}
 	got := slotTimes(slots)
 	if len(got) != len(want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("slot[%d]: got %s, want %s", i, got[i], want[i])
-		}
+	if got[0] != want[0] {
+		t.Errorf("slot[0]: got %s, want %s", got[0], want[0])
+	}
+}
+
+func TestListAvailable_TooNarrow(t *testing.T) {
+	// Timeslot 08:00–08:30 is only 30 min; 60-min service does not fit → no slots.
+	svc := NewAvailabilityService(&availStub{
+		getService: func(id string) (*store.Service, error) {
+			return defaultService(60, 0), nil
+		},
+		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
+		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
+			return []*store.Timeslot{timeslotFor(uid, 8, 0, 8, 30)}, nil
+		},
+	})
+	slots, err := svc.ListAvailable(context.Background(), testSvcID, testDay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(slots) != 0 {
+		t.Errorf("expected 0 slots for too-narrow timeslot, got %d", len(slots))
+	}
+}
+
+func TestListAvailable_SmallerServiceFitsInLargerSlot(t *testing.T) {
+	// Timeslot 08:00–09:00 (60 min), 45-min service → one slot at 08:00.
+	svc := NewAvailabilityService(&availStub{
+		getService: func(id string) (*store.Service, error) {
+			return defaultService(45, 0), nil
+		},
+		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
+		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
+			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
+		},
+	})
+	slots, err := svc.ListAvailable(context.Background(), testSvcID, testDay)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(slots) != 1 {
+		t.Fatalf("expected 1 slot (45-min fits in 60-min timeslot), got %d", len(slots))
+	}
+	if got := slotTimes(slots)[0]; got != "08:00" {
+		t.Errorf("slot start: got %s, want 08:00", got)
 	}
 }
 
 func TestListAvailable_BookedWindowExcluded(t *testing.T) {
-	// Window 08:00–10:00, 60-min service.
-	// Staff has a booking at 08:00–09:00 → any candidate overlapping that window is blocked.
-	// Candidates 08:00, 08:15, 08:30, 08:45 all overlap with 08:00–09:00.
-	// Candidate 09:00–10:00 does not overlap → only one slot returned.
+	// Two timeslots: 08:00–09:00 (booked) and 09:00–10:00 (free).
+	// 60-min service → first slot blocked, second slot available.
 	booking := &store.Booking{
 		UserID:  testStaffID,
 		StartAt: time.Date(2026, 3, 2, 8, 0, 0, 0, time.UTC),
@@ -402,10 +353,12 @@ func TestListAvailable_BookedWindowExcluded(t *testing.T) {
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
 		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 10, 0)}, nil
+			return []*store.Timeslot{
+				timeslotFor(uid, 8, 0, 9, 0),
+				timeslotFor(uid, 9, 0, 10, 0),
+			}, nil
 		},
 		listActiveInWindow: func(uid string, start, end time.Time) ([]*store.Booking, error) {
-			// Return booking only when the candidate window overlaps [08:00, 09:00).
 			if start.Before(booking.EndAt) && end.After(booking.StartAt) {
 				return []*store.Booking{booking}, nil
 			}
@@ -434,7 +387,7 @@ func TestListAvailable_DailyLimitReached(t *testing.T) {
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
 		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 12, 0)}, nil
+			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
 		},
 		listBookingsForDay: func(date time.Time) ([]*store.Booking, error) {
 			return []*store.Booking{
@@ -460,7 +413,7 @@ func TestListAvailable_DailyLimitNotYetReached(t *testing.T) {
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
 		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 10, 0)}, nil
+			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
 		},
 		listBookingsForDay: func(date time.Time) ([]*store.Booking, error) {
 			return []*store.Booking{
@@ -486,7 +439,7 @@ func TestListAvailable_CancelledBookingDoesNotCountTowardLimit(t *testing.T) {
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
 		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 10, 0)}, nil
+			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
 		},
 		listBookingsForDay: func(date time.Time) ([]*store.Booking, error) {
 			return []*store.Booking{
@@ -505,7 +458,7 @@ func TestListAvailable_CancelledBookingDoesNotCountTowardLimit(t *testing.T) {
 }
 
 func TestListAvailable_ZeroDailyLimit_Unlimited(t *testing.T) {
-	// DailyLimit = 0 means unlimited; even with many bookings slots are returned.
+	// DailyLimit = 0 means unlimited; even with many bookings the slot is returned.
 	occupied := make([]*store.Booking, 100)
 	for i := range occupied {
 		occupied[i] = &store.Booking{ServiceID: testSvcID, State: store.BookingStateConfirmed}
@@ -516,7 +469,7 @@ func TestListAvailable_ZeroDailyLimit_Unlimited(t *testing.T) {
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
 		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 10, 0)}, nil
+			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
 		},
 		listBookingsForDay: func(date time.Time) ([]*store.Booking, error) {
 			return occupied, nil
@@ -536,7 +489,7 @@ func TestListAvailable_MultipleStaff(t *testing.T) {
 		{ID: "staff-A", Role: store.UserRoleStaff},
 		{ID: "staff-B", Role: store.UserRoleStaff},
 	}
-	// Both staff have the same 08:00–09:00 window → two sets of candidates.
+	// Both staff have the same 08:00–09:00 timeslot → one slot per staff member.
 	svc := NewAvailabilityService(&availStub{
 		getService: func(id string) (*store.Service, error) {
 			return defaultService(60, 0), nil
@@ -555,9 +508,8 @@ func TestListAvailable_MultipleStaff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Each staff contributes 1 candidate (08:00 only for a 60-min slot in a 1-h window).
 	if len(slots) != 2 {
-		t.Errorf("expected 2 slots (one per staff), got %d", len(slots))
+		t.Errorf("expected 2 slots (one per staff member), got %d", len(slots))
 	}
 	userIDs := map[string]bool{}
 	for _, s := range slots {
@@ -571,16 +523,13 @@ func TestListAvailable_MultipleStaff(t *testing.T) {
 }
 
 func TestListAvailable_OtherServiceBookingDoesNotBlockWindow(t *testing.T) {
-	// A booking for a *different* service should not block windows
-	// (ListActiveBookingsInWindow is keyed by staff user, not service).
-	// This test verifies the daily limit uses the correct serviceID filter.
 	svc := NewAvailabilityService(&availStub{
 		getService: func(id string) (*store.Service, error) {
 			return defaultService(60, 1 /* limit */), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
 		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 10, 0)}, nil
+			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
 		},
 		listBookingsForDay: func(date time.Time) ([]*store.Booking, error) {
 			return []*store.Booking{
@@ -679,6 +628,9 @@ const (
 
 // fixtureStore builds a MemoryStore seeded with the same data as the YAML
 // config files.
+//
+// Three individual 60-minute weekday timeslots (Mon–Fri, 260 occurrences each)
+// plus one Saturday one-off, matching config/availability.yaml exactly.
 func fixtureStore(t *testing.T) *store.MemoryStore {
 	t.Helper()
 	ctx := context.Background()
@@ -693,10 +645,11 @@ func fixtureStore(t *testing.T) *store.MemoryStore {
 		t.Fatal(err)
 	}
 
-	// Two default services
+	// Two default services.  DailyLimit for svcLong matches the number of
+	// weekday timeslots (3) so that exactly 3 bookings saturate the limit.
 	for _, s := range []store.Service{
 		{ID: svcShort, Name: "Beratungsgespräch", DurationMinutes: 30, DailyLimit: 0},
-		{ID: svcLong, Name: "Standardbehandlung", DurationMinutes: 60, DailyLimit: 4},
+		{ID: svcLong, Name: "Standardbehandlung", DurationMinutes: 60, DailyLimit: 3},
 	} {
 		cp := s
 		if err := ms.CreateService(ctx, &cp); err != nil {
@@ -704,37 +657,37 @@ func fixtureStore(t *testing.T) *store.MemoryStore {
 		}
 	}
 
-	// Recurring morning block: Mon–Fri 08:00–12:00 UTC, 260 occurrences (52 weeks)
-	if err := ms.UpsertTimeslot(ctx, &store.Timeslot{
-		ID:        "ts-anna-morning-2026",
-		CalDAVUID: "ts-anna-morning-2026",
-		UserID:    annaID,
-		StartAt:   time.Date(2026, 3, 2, 8, 0, 0, 0, time.UTC),
-		EndAt:     time.Date(2026, 3, 2, 12, 0, 0, 0, time.UTC),
-		RRule:     "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;COUNT=260",
-	}); err != nil {
-		t.Fatal(err)
+	// Three recurring 60-minute weekday slots: 07:00–08:00, 08:30–09:30, 10:00–11:00 UTC.
+	weekdaySlots := []struct {
+		id   string
+		h, m int // start hour/minute
+		eh   int // end hour
+		em   int // end minute
+	}{
+		{"ts-anna-slot1-2026", 7, 0, 8, 0},
+		{"ts-anna-slot2-2026", 8, 30, 9, 30},
+		{"ts-anna-slot3-2026", 10, 0, 11, 0},
+	}
+	for _, ws := range weekdaySlots {
+		if err := ms.UpsertTimeslot(ctx, &store.Timeslot{
+			ID:        ws.id,
+			CalDAVUID: ws.id,
+			UserID:    annaID,
+			StartAt:   time.Date(2026, 3, 2, ws.h, ws.m, 0, 0, time.UTC),
+			EndAt:     time.Date(2026, 3, 2, ws.eh, ws.em, 0, 0, time.UTC),
+			RRule:     "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;COUNT=260",
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	// Recurring afternoon block: Mon–Fri 13:00–17:00 UTC, 260 occurrences (52 weeks)
-	if err := ms.UpsertTimeslot(ctx, &store.Timeslot{
-		ID:        "ts-anna-afternoon-2026",
-		CalDAVUID: "ts-anna-afternoon-2026",
-		UserID:    annaID,
-		StartAt:   time.Date(2026, 3, 2, 13, 0, 0, 0, time.UTC),
-		EndAt:     time.Date(2026, 3, 2, 17, 0, 0, 0, time.UTC),
-		RRule:     "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;COUNT=260",
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	// One-off Saturday morning: 2026-03-07 09:00–12:00 UTC
+	// One-off Saturday 60-minute slot: 2026-03-07 09:00–10:00 UTC.
 	if err := ms.UpsertTimeslot(ctx, &store.Timeslot{
 		ID:        "ts-anna-saturday-2026-03-07",
 		CalDAVUID: "ts-anna-saturday-2026-03-07",
 		UserID:    annaID,
 		StartAt:   time.Date(2026, 3, 7, 9, 0, 0, 0, time.UTC),
-		EndAt:     time.Date(2026, 3, 7, 12, 0, 0, 0, time.UTC),
+		EndAt:     time.Date(2026, 3, 7, 10, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -745,8 +698,7 @@ func fixtureStore(t *testing.T) *store.MemoryStore {
 // TestFixture_SeedDate_ShortService checks the seed date (Mon 2026-03-02) for
 // the 30-min service (no daily limit).
 //
-// Expected slots = morning (08:00–11:30, 15 slots) + afternoon (13:00–16:30, 15
-// slots) = 30 slots.
+// Expected: 3 slots — one per 60-min timeslot at 07:00, 08:30, 10:00 UTC.
 func TestFixture_SeedDate_ShortService(t *testing.T) {
 	svc := NewAvailabilityService(fixtureStore(t))
 	slots, err := svc.ListAvailable(context.Background(), svcShort,
@@ -754,28 +706,23 @@ func TestFixture_SeedDate_ShortService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// morning: 08:00..11:30 (step 30min) → 8 starts
-	// afternoon: 13:00..16:30 → 8 starts  → total 16
-	const wantCount = 16
+	const wantCount = 3
 	if len(slots) != wantCount {
 		t.Errorf("seed date 30-min: got %d slots, want %d\nslots: %v",
 			len(slots), wantCount, slotTimes(slots))
 	}
-	// Spot-check first and last morning slot and first afternoon slot.
 	times := slotTimes(slots)
-	assertContains(t, times, "08:00", "first morning slot")
-	assertContains(t, times, "11:30", "last morning slot")
-	assertContains(t, times, "13:00", "first afternoon slot")
-	assertContains(t, times, "16:30", "last afternoon slot")
-	assertNotContains(t, times, "12:00", "gap between morning and afternoon")
-	assertNotContains(t, times, "11:45", "11:45 start would end at 12:15, outside morning window")
+	assertContains(t, times, "07:00", "first timeslot")
+	assertContains(t, times, "08:30", "second timeslot")
+	assertContains(t, times, "10:00", "third timeslot")
+	assertNotContains(t, times, "08:00", "start of second timeslot before gap")
+	assertNotContains(t, times, "09:00", "inside gap between timeslots 2 and 3")
 }
 
 // TestFixture_SeedDate_LongService checks the seed date for the 60-min service
-// (daily limit 4, 0 existing bookings).
+// (daily limit 3, 0 existing bookings).
 //
-// Expected: morning 08:00–11:00 (4 slots) + afternoon 13:00–16:00 (4 slots)
-// = 8 slots (daily limit not yet hit).
+// Expected: 3 slots at 07:00, 08:30, 10:00 UTC (limit not yet reached).
 func TestFixture_SeedDate_LongService(t *testing.T) {
 	svc := NewAvailabilityService(fixtureStore(t))
 	slots, err := svc.ListAvailable(context.Background(), svcLong,
@@ -783,18 +730,15 @@ func TestFixture_SeedDate_LongService(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const wantCount = 8
+	const wantCount = 3
 	if len(slots) != wantCount {
 		t.Errorf("seed date 60-min: got %d slots, want %d\nslots: %v",
 			len(slots), wantCount, slotTimes(slots))
 	}
 	times := slotTimes(slots)
-	assertContains(t, times, "08:00", "first morning slot")
-	assertContains(t, times, "11:00", "last morning slot")
-	assertNotContains(t, times, "11:15", "11:15+60=12:15 exceeds morning window end")
-	assertContains(t, times, "13:00", "first afternoon slot")
-	assertContains(t, times, "16:00", "last afternoon slot")
-	assertNotContains(t, times, "16:15", "16:15+60=17:15 exceeds afternoon window end")
+	assertContains(t, times, "07:00", "first timeslot")
+	assertContains(t, times, "08:30", "second timeslot")
+	assertContains(t, times, "10:00", "third timeslot")
 }
 
 // TestFixture_NextMonday verifies the second Monday occurrence (2026-03-09)
@@ -806,8 +750,8 @@ func TestFixture_NextMonday(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(slots) != 16 {
-		t.Errorf("next Monday 30-min: got %d slots, want 16\nslots: %v",
+	if len(slots) != 3 {
+		t.Errorf("next Monday 30-min: got %d slots, want 3\nslots: %v",
 			len(slots), slotTimes(slots))
 	}
 }
@@ -820,16 +764,16 @@ func TestFixture_Tuesday(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(slots) != 16 {
-		t.Errorf("Tuesday 30-min: got %d slots, want 16\nslots: %v",
+	if len(slots) != 3 {
+		t.Errorf("Tuesday 30-min: got %d slots, want 3\nslots: %v",
 			len(slots), slotTimes(slots))
 	}
 }
 
-// TestFixture_Saturday_OneOff checks the one-off Saturday timeslot 09:00–12:00.
+// TestFixture_Saturday_OneOff checks the one-off Saturday timeslot 09:00–10:00.
 //
-// 30-min service: 09:00..11:30 → 11 slots.
-// 60-min service: 09:00..11:00 → 9 slots.
+// Both the 30-min and 60-min service fit in the single 60-min slot, so each
+// produces exactly 1 slot starting at 09:00 UTC.
 func TestFixture_Saturday_OneOff(t *testing.T) {
 	saturday := time.Date(2026, 3, 7, 0, 0, 0, 0, time.UTC)
 	svc := NewAvailabilityService(fixtureStore(t))
@@ -839,16 +783,15 @@ func TestFixture_Saturday_OneOff(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		const want = 6 // 09:00, 09:30, 10:00, 10:30, 11:00, 11:30
+		const want = 1
 		if len(slots) != want {
 			t.Errorf("Saturday 30-min: got %d slots, want %d\nslots: %v",
 				len(slots), want, slotTimes(slots))
 		}
 		times := slotTimes(slots)
-		assertContains(t, times, "09:00", "first slot")
-		assertContains(t, times, "11:30", "last slot")
-		assertNotContains(t, times, "08:45", "before one-off window")
-		assertNotContains(t, times, "11:45", "11:45+30=12:15 past window end")
+		assertContains(t, times, "09:00", "sole Saturday slot")
+		assertNotContains(t, times, "08:00", "before the one-off window")
+		assertNotContains(t, times, "10:00", "second slot would start past 09:00")
 	})
 
 	t.Run("60min", func(t *testing.T) {
@@ -856,15 +799,13 @@ func TestFixture_Saturday_OneOff(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		const want = 3 // 09:00, 10:00, 11:00
+		const want = 1
 		if len(slots) != want {
 			t.Errorf("Saturday 60-min: got %d slots, want %d\nslots: %v",
 				len(slots), want, slotTimes(slots))
 		}
 		times := slotTimes(slots)
-		assertContains(t, times, "09:00", "first slot")
-		assertContains(t, times, "11:00", "last slot")
-		assertNotContains(t, times, "11:15", "11:15+60=12:15 past window end")
+		assertContains(t, times, "09:00", "sole Saturday slot")
 	})
 }
 
@@ -883,21 +824,24 @@ func TestFixture_Sunday_NoSlots(t *testing.T) {
 	}
 }
 
-// TestFixture_DailyLimitBlocksAllSlots verifies that once 4 active bookings
-// exist for the 60-min service on a given day, zero slots are returned.
+// TestFixture_DailyLimitBlocksAllSlots verifies that once 3 active bookings
+// exist for the 60-min service on a given day (= daily limit), zero slots are returned.
 func TestFixture_DailyLimitBlocksAllSlots(t *testing.T) {
 	ms := fixtureStore(t)
-	// Insert 4 confirmed bookings for svcLong on 2026-03-02.
-	for i := range 4 {
+	ctx := context.Background()
+	// Insert 3 confirmed bookings — one per 60-min weekday timeslot on 2026-03-02.
+	type window struct{ sh, sm, eh, em int }
+	bookedSlots := []window{{7, 0, 8, 0}, {8, 30, 9, 30}, {10, 0, 11, 0}}
+	for i, w := range bookedSlots {
 		b := &store.Booking{
 			ID:        fmt.Sprintf("bk-%d", i),
 			ServiceID: svcLong,
 			UserID:    annaID,
-			StartAt:   time.Date(2026, 3, 2, 8+i, 0, 0, 0, time.UTC),
-			EndAt:     time.Date(2026, 3, 2, 9+i, 0, 0, 0, time.UTC),
+			StartAt:   time.Date(2026, 3, 2, w.sh, w.sm, 0, 0, time.UTC),
+			EndAt:     time.Date(2026, 3, 2, w.eh, w.em, 0, 0, time.UTC),
 			State:     store.BookingStateConfirmed,
 		}
-		if err := ms.CreateBooking(context.Background(), b); err != nil {
+		if err := ms.CreateBooking(ctx, b); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -936,14 +880,15 @@ func TestFixture_MonthRange(t *testing.T) {
 	if _, ok := result["2026-03-08"]; ok {
 		t.Errorf("expected no slots for 2026-03-08 (Sunday), but got some")
 	}
-	// Slot counts per day.
-	for _, weekday := range wantDays[:5] { // Mon–Fri: 16 slots each
-		if got := len(result[weekday]); got != 16 {
-			t.Errorf("%s (weekday) 30-min: got %d slots, want 16", weekday, got)
+	// Mon–Fri: 3 timeslots each → 3 slots per day (svcShort 30-min fits all).
+	for _, weekday := range wantDays[:5] {
+		if got := len(result[weekday]); got != 3 {
+			t.Errorf("%s (weekday) 30-min: got %d slots, want 3", weekday, got)
 		}
 	}
-	if got := len(result["2026-03-07"]); got != 6 { // Saturday one-off
-		t.Errorf("2026-03-07 (Saturday one-off) 30-min: got %d slots, want 6", got)
+	// Saturday one-off: 1 timeslot (09:00–10:00) → 1 slot.
+	if got := len(result["2026-03-07"]); got != 1 {
+		t.Errorf("2026-03-07 (Saturday one-off) 30-min: got %d slots, want 1", got)
 	}
 }
 
@@ -957,8 +902,8 @@ func TestFixture_MidYear(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(slots) != 16 {
-		t.Errorf("mid-year Monday 30-min: got %d slots, want 16\nslots: %v",
+	if len(slots) != 3 {
+		t.Errorf("mid-year Monday 30-min: got %d slots, want 3\nslots: %v",
 			len(slots), slotTimes(slots))
 	}
 }
