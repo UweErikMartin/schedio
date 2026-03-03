@@ -21,8 +21,9 @@ import (
 	"strings"
 	"time"
 
-	rrulego "github.com/teambition/rrule-go"
 	calstore "schedio/internal/store"
+
+	rrulego "github.com/teambition/rrule-go"
 
 	"k8s.io/klog/v2"
 )
