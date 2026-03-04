@@ -51,20 +51,20 @@ var favicon []byte
 // assetMap maps URL paths to embedded file content.
 // Initialised once at startup; rebuilt on every request would be wasteful.
 var assetMap = map[string][]byte{
-	"/js/default.js":                  defaultJS,
-	"/js/x-date-time-picker.js":       dateTimePickerJS,
-	"/js/x-service-picker.js":         servicePickerJS,
-	"/js/x-toast.js":                  toastJS,
-	"/js/booking/booking-app.js":      bookingAppJS,
-	"/js/admin/admin-app.js":          adminAppJS,
-	"/js/admin/login-form.js":         loginFormJS,
-	"/js/admin/admin-nav.js":          adminNavJS,
-	"/js/admin/admin-dashboard.js":    adminDashboardJS,
-	"/js/admin/settings-form.js":      settingsFormJS,
-	"/css/styles.css":                 stylesCSS,
-	"/favicon.ico":                    favicon,
-	"/":                               indexHTML,
-	"/index.html":                     indexHTML,
+	"/js/default.js":               defaultJS,
+	"/js/x-date-time-picker.js":    dateTimePickerJS,
+	"/js/x-service-picker.js":      servicePickerJS,
+	"/js/x-toast.js":               toastJS,
+	"/js/booking/booking-app.js":   bookingAppJS,
+	"/js/admin/admin-app.js":       adminAppJS,
+	"/js/admin/login-form.js":      loginFormJS,
+	"/js/admin/admin-nav.js":       adminNavJS,
+	"/js/admin/admin-dashboard.js": adminDashboardJS,
+	"/js/admin/settings-form.js":   settingsFormJS,
+	"/css/styles.css":              stylesCSS,
+	"/favicon.ico":                 favicon,
+	"/":                            indexHTML,
+	"/index.html":                  indexHTML,
 }
 
 // GetContent returns the embedded content for the given URL path.
@@ -82,4 +82,3 @@ func GetContent(path string) ([]byte, error) {
 	}
 	return nil, http.ErrMissingFile
 }
-
