@@ -26,14 +26,18 @@ func main() {
 	args := config.ParseCommandLineArgs(os.Args)
 	_ = flag.Set("v", strconv.Itoa(args.Verbose))
 
+	// MemoryStore implements both CalendarStore and DomainStore; share one
+	// instance so that settings changes (e.g. DefaultCalendarName) are
+	// immediately reflected in CalDAV responses without a restart.
+	sharedStore := calstore.NewMemoryStore()
 	var caldavStore calstore.CalendarStore
 	if args.Dummy {
 		klog.Info("using dummy CalDAV store")
 		caldavStore = calstore.NewDummyStore()
 	} else {
-		caldavStore = calstore.NewMemoryStore()
+		caldavStore = sharedStore
 	}
-	domainStore := calstore.NewMemoryStore()
+	domainStore := sharedStore
 	if len(args.Users) > 0 {
 		klog.Infof("syncing %d users into domain store", len(args.Users))
 		if err := syncUsersFromConfig(args.Users, domainStore); err != nil {
@@ -90,7 +94,7 @@ func main() {
 // into store.User values and syncs them into the domain store. When a UserEntry
 // carries an explicit ID it is used as-is so that cross-references from the
 // availability file remain stable across restarts.
-func syncUsersFromConfig(entries []config.UserEntry, st *calstore.MemoryStore) error {
+func syncUsersFromConfig(entries []config.UserEntry, st calstore.DomainStore) error {
 	users := make([]*calstore.User, len(entries))
 	for i, e := range entries {
 		id := e.ID
@@ -114,7 +118,7 @@ func syncUsersFromConfig(entries []config.UserEntry, st *calstore.MemoryStore) e
 // -availabilityFile) into store.Timeslot values and upserts them into the
 // domain store. Each entry is idempotent: re-running with the same file
 // produces the same in-memory state.
-func syncTimeslotsFromConfig(entries []config.TimeslotEntry, st *calstore.MemoryStore) error {
+func syncTimeslotsFromConfig(entries []config.TimeslotEntry, st calstore.DomainStore) error {
 	for _, e := range entries {
 		start, err := time.Parse(time.RFC3339, e.StartAt)
 		if err != nil {
@@ -143,7 +147,7 @@ func syncTimeslotsFromConfig(entries []config.TimeslotEntry, st *calstore.Memory
 // -servicesFile or the built-in defaults) into store.Service values and
 // creates them in the domain store. The domain store is always empty at
 // startup so CreateService will never encounter a conflict here.
-func syncServicesFromConfig(entries []config.ServiceEntry, st *calstore.MemoryStore) error {
+func syncServicesFromConfig(entries []config.ServiceEntry, st calstore.DomainStore) error {
 	for _, e := range entries {
 		svc := &calstore.Service{
 			ID:              e.ID,

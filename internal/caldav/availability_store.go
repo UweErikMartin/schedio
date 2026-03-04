@@ -30,6 +30,10 @@ import (
 
 const availCalPrefix = "avail-"
 
+// bookingEventPrefix is prepended to a Booking.ID to form the CalDAV event ID
+// for booking-derived synthetic events in the default calendar.
+const bookingEventPrefix = "booking-"
+
 // availCalendarID returns the CalDAV calendar ID for a given staff user's
 // availability calendar.
 func availCalendarID(userID string) string {
@@ -44,6 +48,56 @@ func availUserIDFromCalID(id string) (string, bool) {
 		return strings.TrimPrefix(id, availCalPrefix), true
 	}
 	return "", false
+}
+
+// bookingIDFromEventID extracts the Booking.ID from a booking-derived event ID.
+// Returns "", false when eventID does not have the booking prefix.
+func bookingIDFromEventID(eventID string) (string, bool) {
+	if strings.HasPrefix(eventID, bookingEventPrefix) {
+		return strings.TrimPrefix(eventID, bookingEventPrefix), true
+	}
+	return "", false
+}
+
+// bookingToEvent converts a Booking into a synthetic read-only CalDAV Event.
+// serviceName is the human-readable service label (may be "" if unavailable).
+// The event is TENTATIVE for reserved bookings and CONFIRMED once approved.
+func bookingToEvent(calID string, b *calstore.Booking, contactName, serviceName string) *calstore.Event {
+	// Build summary: "<ContactName> (<ServiceName>)", falling back gracefully
+	// when either component is unavailable.
+	var summary string
+	switch {
+	case contactName != "" && serviceName != "":
+		summary = contactName + " (" + serviceName + ")"
+	case contactName != "":
+		summary = contactName
+	case serviceName != "":
+		summary = serviceName
+	default:
+		summary = "Booking"
+	}
+	status := calstore.StatusTentative
+	if b.State == calstore.BookingStateConfirmed {
+		status = calstore.StatusConfirmed
+	}
+	// Use UpdatedAt as a stable proxy for ETag when CalDAVETag is empty.
+	etag := b.CalDAVETag
+	if etag == "" {
+		etag = fmt.Sprintf("%x", b.UpdatedAt.UnixNano())
+	}
+	return &calstore.Event{
+		ID:         bookingEventPrefix + b.ID,
+		CalendarID: calID,
+		Summary:    summary,
+		Start:      b.StartAt,
+		End:        b.EndAt,
+		Status:     status,
+		Opacity:    calstore.OpacityOpaque,
+		Created:    b.CreatedAt,
+		Modified:   b.UpdatedAt,
+		Sequence:   b.Sequence,
+		ETag:       etag,
+	}
 }
 
 // combinedCalendarStore implements calstore.CalendarStore by merging the
@@ -122,14 +176,18 @@ func (s *combinedCalendarStore) viewableAvailCalendars(ctx context.Context) ([]*
 // layer. The CalDAV UID is used as the event ID. The RRule and ExDates are
 // preserved so that eventToObject can emit proper RRULE:/EXDATE: properties
 // in the iCal output.
+//
+// The event is synthesised as free (SUMMARY: "Free", TRANSP: TRANSPARENT)
+// by default. Callers that need occupancy-aware synthesis should use
+// timeslotToEventWithOccupancy instead.
 func timeslotToEvent(calID string, t *calstore.Timeslot) *calstore.Event {
 	return &calstore.Event{
 		ID:           t.CalDAVUID,
 		CalendarID:   calID,
-		Summary:      "Available",
+		Summary:      "Free",
 		Start:        t.StartAt,
 		End:          t.EndAt,
-		Opacity:      calstore.OpacityOpaque,
+		Opacity:      calstore.OpacityTransparent,
 		Status:       calstore.StatusConfirmed,
 		Created:      t.CreatedAt,
 		Modified:     t.UpdatedAt,
@@ -137,6 +195,80 @@ func timeslotToEvent(calID string, t *calstore.Timeslot) *calstore.Event {
 		RRule:        t.RRule,
 		RecurrenceID: t.RecurrenceID,
 		ExDates:      append([]time.Time(nil), t.ExDates...),
+	}
+}
+
+// timeslotToEventWithOccupancy synthesises a CalDAV Event from a Timeslot and
+// enriches its SUMMARY and TRANSP with booking occupancy information
+// (CDV-TS-READ-1 / CDV-TS-READ-2 / CDV-TS-READ-3).
+//
+// Rules:
+//   - Recurring series roots (RRule != "", RecurrenceID zero) are always
+//     returned as free+transparent because individual occurrence occupancy
+//     cannot be expressed on a single series-root VEVENT. Individual booked
+//     occurrences appear as annotated override events.
+//   - Single events and recurring overrides: DomainStore.ListActiveBookingsInWindow
+//     is called for [ts.StartAt, ts.EndAt). If the result is non-empty the
+//     event receives the booked representation
+//     (SUMMARY: "<contact> (<service>)", TRANSP: OPAQUE); otherwise it
+//     stays as the free representation (SUMMARY: "Free", TRANSP: TRANSPARENT).
+//
+// Store lookup errors during the occupancy check degrade gracefully: the free
+// representation is returned so that a transient error does not break the
+// entire listing.
+func (s *combinedCalendarStore) timeslotToEventWithOccupancy(ctx context.Context, calID, ownerID string, ts *calstore.Timeslot) (*calstore.Event, error) {
+	ev := timeslotToEvent(calID, ts)
+
+	// CDV-TS-READ-1: recurring series roots are always free.
+	if ts.RRule != "" && ts.RecurrenceID.IsZero() {
+		return ev, nil
+	}
+
+	// CDV-TS-READ-1: check occupancy for single events and overrides.
+	bookings, err := s.domain.ListActiveBookingsInWindow(ctx, ownerID, ts.StartAt, ts.EndAt)
+	if err != nil {
+		// Degrade gracefully: return the free representation.
+		klog.Warningf("caldav/avail: timeslotToEventWithOccupancy uid=%q occupancy check: %v", ts.CalDAVUID, err)
+		return ev, nil
+	}
+	if len(bookings) == 0 {
+		// CDV-TS-READ-2: free.
+		return ev, nil
+	}
+
+	// CDV-TS-READ-3: booked — use the first booking (sorted by start_at ascending).
+	b := bookings[0]
+	contactName := ""
+	if b.ContactID != "" {
+		if contact, cErr := s.domain.GetContact(ctx, b.ContactID); cErr == nil {
+			parts := strings.TrimSpace(contact.FirstName + " " + contact.LastName)
+			if parts != "" {
+				contactName = parts
+			}
+		}
+	}
+	serviceName := ""
+	if svc, svcErr := s.domain.GetService(ctx, b.ServiceID); svcErr == nil {
+		serviceName = svc.Name
+	}
+	ev.Summary = timeslotBookedSummary(contactName, serviceName)
+	ev.Opacity = calstore.OpacityOpaque
+	return ev, nil
+}
+
+// timeslotBookedSummary builds the display title for a booked timeslot event
+// (CDV-TS-READ-3): "<contactName> (<serviceName>)", degrading gracefully when
+// either component is unavailable.
+func timeslotBookedSummary(contactName, serviceName string) string {
+	switch {
+	case contactName != "" && serviceName != "":
+		return contactName + " (" + serviceName + ")"
+	case contactName != "":
+		return contactName
+	case serviceName != "":
+		return "(" + serviceName + ")"
+	default:
+		return "Booked"
 	}
 }
 
@@ -195,17 +327,39 @@ func (s *combinedCalendarStore) ListCalendars(ctx context.Context) ([]*calstore.
 }
 
 // GetEvent implements CalendarStore. Availability events are synthesised from
-// the Timeslot with the matching CalDAV UID; others are delegated.
+// the Timeslot with the matching CalDAV UID; booking-derived events are looked
+// up from the DomainStore; others are delegated.
 func (s *combinedCalendarStore) GetEvent(ctx context.Context, calendarID, eventID string) (*calstore.Event, error) {
 	if ownerID, ok := availUserIDFromCalID(calendarID); ok {
 		if !s.canAccessAvailCal(ctx, ownerID) {
 			return nil, calstore.ErrForbidden
 		}
-		ts, err := s.domain.GetTimeslot(ctx, ownerID, eventID)
+		ti, err := s.domain.GetTimeslot(ctx, ownerID, eventID)
 		if err != nil {
 			return nil, err
 		}
-		return timeslotToEvent(calendarID, ts), nil
+		return s.timeslotToEventWithOccupancy(ctx, calendarID, ownerID, ti)
+	}
+	// Non-avail: check whether this is a booking-derived event.
+	if bookingID, ok := bookingIDFromEventID(eventID); ok {
+		b, err := s.domain.GetBooking(ctx, bookingID)
+		if err != nil {
+			return nil, err
+		}
+		serviceName := ""
+		if svc, svcErr := s.domain.GetService(ctx, b.ServiceID); svcErr == nil {
+			serviceName = svc.Name
+		}
+		contactName := ""
+		if b.ContactID != "" {
+			if contact, cErr := s.domain.GetContact(ctx, b.ContactID); cErr == nil {
+				parts := strings.TrimSpace(contact.FirstName + " " + contact.LastName)
+				if parts != "" {
+					contactName = parts
+				}
+			}
+		}
+		return bookingToEvent(calendarID, b, contactName, serviceName), nil
 	}
 	return s.base.GetEvent(ctx, calendarID, eventID)
 }
@@ -229,11 +383,54 @@ func (s *combinedCalendarStore) ListEvents(ctx context.Context, calendarID strin
 		}
 		events := make([]*calstore.Event, 0, len(tss))
 		for _, ts := range tss {
-			events = append(events, timeslotToEvent(calendarID, ts))
+			ev, evErr := s.timeslotToEventWithOccupancy(ctx, calendarID, ownerID, ts)
+			if evErr != nil {
+				return nil, evErr
+			}
+			events = append(events, ev)
 		}
 		return events, nil
 	}
-	return s.base.ListEvents(ctx, calendarID, time.Time{}, time.Time{})
+	// Non-avail calendar: merge base CalDAV events with booking-derived events
+	// so that reserved and confirmed bookings appear to CalDAV clients.
+	baseEvents, err := s.base.ListEvents(ctx, calendarID, time.Time{}, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	bookingEvents, err := s.mergeBookingEvents(ctx, calendarID, time.Time{}, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	return append(baseEvents, bookingEvents...), nil
+}
+
+// mergeBookingEvents fetches all non-cancelled Bookings in [start, end] from
+// the DomainStore and converts them to synthetic CalDAV Events in calendarID.
+// Errors during service-name lookup are silently ignored so that a missing
+// service does not prevent the calendar from being returned.
+func (s *combinedCalendarStore) mergeBookingEvents(ctx context.Context, calendarID string, start, end time.Time) ([]*calstore.Event, error) {
+	bookings, err := s.domain.ListAllBookingsInWindow(ctx, start, end)
+	if err != nil {
+		return nil, err
+	}
+	events := make([]*calstore.Event, 0, len(bookings))
+	for _, b := range bookings {
+		serviceName := ""
+		if svc, svcErr := s.domain.GetService(ctx, b.ServiceID); svcErr == nil {
+			serviceName = svc.Name
+		}
+		contactName := ""
+		if b.ContactID != "" {
+			if contact, cErr := s.domain.GetContact(ctx, b.ContactID); cErr == nil {
+				parts := strings.TrimSpace(contact.FirstName + " " + contact.LastName)
+				if parts != "" {
+					contactName = parts
+				}
+			}
+		}
+		events = append(events, bookingToEvent(calendarID, b, contactName, serviceName))
+	}
+	return events, nil
 }
 
 // PutEvent implements CalendarStore. Writes to an availability calendar are
@@ -302,6 +499,10 @@ func (s *combinedCalendarStore) PutEvent(ctx context.Context, event *calstore.Ev
 		}
 
 		return s.domain.UpsertTimeslot(ctx, eventToTimeslot(ownerID, event))
+	}
+	// Booking-derived events are read-only; reject any write attempt.
+	if _, ok := bookingIDFromEventID(event.ID); ok {
+		return calstore.ErrForbidden
 	}
 	return s.base.PutEvent(ctx, event)
 }
@@ -423,6 +624,10 @@ func (s *combinedCalendarStore) DeleteEvent(ctx context.Context, calendarID, eve
 		// Step 3: delete the series root record.
 		return s.domain.DeleteTimeslot(ctx, ownerID, eventID)
 	}
+	// Booking-derived events are read-only; reject any delete attempt.
+	if _, ok := bookingIDFromEventID(eventID); ok {
+		return calstore.ErrForbidden
+	}
 	return s.base.DeleteEvent(ctx, calendarID, eventID, etag)
 }
 
@@ -470,7 +675,10 @@ func (s *combinedCalendarStore) checkSeriesBookingConflict(ctx context.Context, 
 }
 
 // CTag implements CalendarStore. For availability calendars the CTag is a
-// truncated SHA-256 hash of all raw timeslot UIDs and ETags; others are delegated.
+// truncated SHA-256 hash of all raw timeslot UIDs and ETags; for base
+// calendars the CTag is derived from the base store's token combined with a
+// hash over the current booking snapshot so that CalDAV clients detect new or
+// updated bookings.
 func (s *combinedCalendarStore) CTag(ctx context.Context, calendarID string) (string, error) {
 	if ownerID, ok := availUserIDFromCalID(calendarID); ok {
 		if !s.canAccessAvailCal(ctx, ownerID) {
@@ -486,5 +694,22 @@ func (s *combinedCalendarStore) CTag(ctx context.Context, calendarID string) (st
 		}
 		return fmt.Sprintf("%x", h.Sum(nil))[:16], nil
 	}
-	return s.base.CTag(ctx, calendarID)
+	// Non-avail calendar: combine base CTag with a hash over the booking
+	// snapshot so that any booking change invalidates the client cache.
+	baseCtag, err := s.base.CTag(ctx, calendarID)
+	if err != nil {
+		return "", err
+	}
+	bookings, err := s.domain.ListAllBookingsInWindow(ctx, time.Time{}, time.Time{})
+	if err != nil {
+		// Gracefully degrade: at least return the base ctag.
+		klog.Warningf("caldav/avail: CTag %q: ListAllBookingsInWindow: %v", calendarID, err)
+		return baseCtag, nil
+	}
+	h := sha256.New()
+	fmt.Fprintf(h, "%s\n", baseCtag)
+	for _, b := range bookings {
+		fmt.Fprintf(h, "%s:%d:%d\n", b.ID, b.Sequence, b.UpdatedAt.UnixNano())
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))[:16], nil
 }

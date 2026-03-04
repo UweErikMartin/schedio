@@ -24,7 +24,7 @@ A customer shall be able to open the booking web page on any web-capable device:
 The booking process follows these steps:
 
 1. **Service selection** — The customer selects a service offering from a list of available services. This selection starts a **booking session**. A booking session is a first-class concept in the data model: it groups all individual bookings created in one interaction and persists across page navigations so the customer can move between steps, add or remove bookings, and return without losing his selection. A session is always tied to exactly one service. If the customer navigates back and selects a different service, the existing session and all its booking lines are discarded and a new session for the newly selected service is started.
-2. **Timeslot selection** — The timeslot selection is presented as a list of booking lines within the active session. Each line represents one independent booking of the selected service. Timeslots in the **Timeslots** CalDAV calendar (see *Timeslot Management*) represent the administrator's general availability and are service-agnostic. When presenting options to the customer, schedio finds availability windows in the Timeslots calendar that are long enough to accommodate the duration of the selected service and that are not already occupied by an active booking. The start of such a window is offered as a bookable slot:
+2. **Timeslot selection** — The timeslot selection is presented as a list of booking lines within the active session. Each line represents one independent booking of the selected service. Timeslots in the **Timeslot-Calendar** (see *Timeslot Management*) represent the administrator's general availability and are service-agnostic. When presenting options to the customer, schedio finds availability windows in the Timeslot-Calendar that are long enough to accommodate the duration of the selected service and that are not already occupied by an active booking. The start of such a window is offered as a bookable slot:
    - The first line is added automatically and shows the next available start time that fits the service duration as the pre-selected value.
    - The customer can change the date and/or the time of that booking line by interacting with the date and time controls on the same line. Only start times that fall within a sufficiently long free availability window are selectable.
    - After the timeslot of a line is set, the customer can choose to add another booking of the same service. Doing so appends a new line pre-filled with the next available start time after the previously selected appointment ends.
@@ -55,7 +55,7 @@ The booking process follows these steps:
 
 After login, the Administrator sees a dashboard with quick access to the configuration and catalogue areas of the application:
 
-- **General Settings** — Upload or replace the Terms and Conditions PDF; configure the no-show deadline, the currency, the appointment location, the data retention period, and the management link secret. See *General Settings* (§3).
+- **General Settings** — Upload or replace the Terms and Conditions PDF; configure the no-show deadline, the currency, the appointment location, the data retention period, the management link secret, and the Timeslot-Calendar display name shown to staff users in CalDAV clients. See *General Settings* (§3).
 - **Services** — Add, edit, and delete services. See *Service Administration* (§1).
 
 The Administrator has no direct access to individual customer bookings or the day's schedule.
@@ -98,6 +98,7 @@ After login, the Staff user sees a dashboard focused on daily operations and boo
    - **Data Retention Period** — The number of days to retain customer contact and booking records after the customer's last appointment has been completed (i.e., the appointment's end time has passed). The default is **30 days**. Changing this value takes effect at the next scheduled check. See *Data Retention* (§3 in Staff Tasks) for the full lifecycle.
    - **Reminder Lead Time** — The number of days before an appointment at which a reminder e-mail is automatically sent to the customer. Must be a positive integer; default is **1** (i.e. the reminder is sent the day before the appointment). Changing this value takes effect at the next scheduled check; bookings for which a reminder was already sent are not re-notified.
    - **Absender-Name (Sender Name)** — The display name shown in the `From:` header of all customer-facing e-mails (e.g. `Mein Buchungssystem`). Default is `"Schedio Buchungssystem"`. Can also be set at server startup via the `--smtpSenderName` command-line flag or the `smtpSenderName` key in the YAML config file (see `-configFile`); the admin UI value overrides the startup value and the change takes effect immediately for all subsequently sent e-mails without a server restart.
+   - **Default CalDAV Calendar Name** — The display name shown for the **Timeslot-Calendar** in CalDAV-capable clients (e.g. Apple Calendar) when a staff user connects their account. The Booking-Calendar always bears the fixed name `"Booking-Calendar"` and is not affected by this setting. If the field is left empty the Timeslot-Calendar is shown as `"Timeslot-Calendar"`. Changing this value takes effect immediately; no server restart is required.
 
 3. **User and Role Management**
 
@@ -179,19 +180,24 @@ After login, the Staff user sees a dashboard focused on daily operations and boo
 
 2. **Timeslot Management**
 
-   Available timeslots are managed by the Staff user via a dedicated CalDAV calendar named **Timeslots**. This calendar is served by the schedio CalDAV endpoint and is visible as a separate calendar in Apple Calendar (or any CalDAV-capable client). The Timeslots calendar represents general availability and is **service-agnostic**: events in it do not specify which service can be booked; they only define when the Staff user is available. schedio matches a customer's service selection against these availability windows at booking time.
+   Available timeslots are managed by the Staff user via a dedicated CalDAV calendar named **Timeslot-Calendar**. This calendar is served by the schedio CalDAV endpoint and is visible as a separate calendar in Apple Calendar (or any CalDAV-capable client). The Timeslot-Calendar represents general availability and is **service-agnostic**: events in it do not specify which service can be booked; they only define when the Staff user is available. schedio matches a customer's service selection against these availability windows at booking time.
 
-   The Staff user manages availability by adding, modifying, and deleting events in the Timeslots calendar directly in Apple Calendar:
+   The Staff user manages availability by adding, modifying, and deleting events in the Timeslot-Calendar directly in Apple Calendar:
 
-   - **Add a timeslot** — The Staff user creates a calendar event in the Timeslots calendar. The event's start time and duration define an availability window during which appointments can be booked. Any service whose duration fits within the window may be booked into it.
+   - **Add a timeslot** — The Staff user creates a calendar event in the Timeslot-Calendar. The event's start time and duration define an availability window during which appointments can be booked. Any service whose duration fits within the window may be booked into it.
    - **Add recurring timeslots** — The Staff user can create recurring events (daily, weekly, or custom recurrence rules) to define repeating availability without entering each slot individually. Individual occurrences of a recurring event can be modified or deleted independently without affecting the rest of the series.
    - **Modify a timeslot** — The Staff user can change the start time, duration, or recurrence of an existing availability window. Existing bookings that fall within the original window are not automatically changed or cancelled. However, if the modification causes one or more active bookings to no longer fit within the revised window (conflict), schedio sends a notification e-mail to the Staff user. This e-mail contains a list of all conflicting bookings, each with the booking date and time, the service booked, and the customer's contact data (name, e-mail address, telephone number), so that the Staff user can contact the affected customers directly.
-   - **Delete a timeslot** — The Staff user can delete a single occurrence or an entire recurring series from the Timeslots calendar. Existing bookings that fall within the deleted window are not automatically cancelled. If the deletion affects one or more active bookings, schedio sends a notification e-mail to the Staff user listing all affected bookings with their booking date and time, the service booked, and the customer's contact data (name, e-mail address, telephone number).
+   - **Delete a timeslot** — The Staff user can delete a single occurrence or an entire recurring series from the Timeslot-Calendar. Existing bookings that fall within the deleted window are not automatically cancelled. If the deletion affects one or more active bookings, schedio sends a notification e-mail to the Staff user listing all affected bookings with their booking date and time, the service booked, and the customer's contact data (name, e-mail address, telephone number).
 
    schedio determines bookable start times for a given service as follows:
-   - Find all events in the Timeslots calendar whose duration is greater than or equal to the selected service's duration.
+   - Find all events in the Timeslot-Calendar whose duration is greater than or equal to the selected service's duration.
    - Within each such event, identify start-aligned positions that are not already occupied by an active booking of the same or greater duration.
    - Offer those positions as selectable start times to the customer.
+
+   **Timeslot visual state in CalDAV** — When a staff user's CalDAV client reads the Timeslot-Calendar, each timeslot event is presented with a visual state reflecting current booking occupancy:
+   - **Free timeslot** — A timeslot with no active booking (`reserved` or `confirmed`) overlapping its window is shown with the title `"Free"` and marked as transparent (`TRANSP: TRANSPARENT`) so it does not block time in the staff user's calendar view.
+   - **Booked timeslot** — A timeslot that has at least one active booking overlapping its window is shown with the title `"<customer name> (<service name>)"` (contact name and service name of the earliest overlapping booking, ordered by start time) and marked as opaque (`TRANSP: OPAQUE`) so it appears as a busy period.
+   - **Recurring series roots** — A recurring timeslot series (defined with a recurrence rule) is always displayed as free and transparent, because individual occurrence occupancy cannot be expressed on the series root VEVENT. Individual booked occurrences are returned as separate override events carrying the booked title and opaque state.
 
 3. **Data Retention**
 
@@ -266,7 +272,7 @@ Automated tasks run periodically inside the schedio process (no external schedul
 
 No open items remain. Full resolution history:
 
-- [resolved_inconsistencies.md](resolved_inconsistencies.md) — I1–I4, NI1–NI9, M1–M25, NI10–NI16, NI17–NI26, NI27–NI30, NI31.
+- [resolved_inconsistencies.md](resolved_inconsistencies.md) — I1–I4, NI1–NI9, M1–M25, NI10–NI16, NI17–NI26, NI27–NI30, NI31, NI32.
 
 ---
 
@@ -297,7 +303,7 @@ The primary persistence store is **PostgreSQL**. All domain entities (Services, 
 
 The schema is managed by schedio itself via embedded migration scripts applied at startup. No external migration tool is required.
 
-**Architecture: CalDAV as a facade** — PostgreSQL is the single source of truth for all domain data. The CalDAV endpoint (`/caldav/`) is a **read/write facade** that presents a computed view of the PostgreSQL data: the Timeslots and Bookings calendars are constructed on-the-fly from the database. All mutations — booking creation, confirmation, cancellation, timeslot changes — are performed through the REST API. When the CalDAV endpoint receives a write (e.g. a `PUT` or `DELETE` from Apple Calendar), schedio translates it into the corresponding REST/domain operation on the PostgreSQL store, rather than writing directly to a CalDAV-native store. This ensures PostgreSQL is always authoritative and the REST API (documented in OpenAPI) is the canonical interface for all operations.
+**Architecture: CalDAV as a facade** — PostgreSQL is the single source of truth for all domain data. The CalDAV endpoint (`/caldav/`) is a **read/write facade** that presents a computed view of the PostgreSQL data: the Timeslot-Calendar and Booking-Calendar are constructed on-the-fly from the database. All mutations — booking creation, confirmation, cancellation, timeslot changes — are performed through the REST API. When the CalDAV endpoint receives a write (e.g. a `PUT` or `DELETE` from Apple Calendar), schedio translates it into the corresponding REST/domain operation on the PostgreSQL store, rather than writing directly to a CalDAV-native store. This ensures PostgreSQL is always authoritative and the REST API (documented in OpenAPI) is the canonical interface for all operations.
 
 **Store backend selection** — The active store backend is selected at startup via the environment variable `STORE_BACKEND`:
 

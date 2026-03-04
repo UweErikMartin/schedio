@@ -29,6 +29,7 @@ func NewRouter(args *config.Config, calStore calstore.CalendarStore, domainStore
 	authH := authhandler.NewHandler(sessions, authenticator, domainStore)
 	mux.HandleFunc("POST "+args.RootPath+"/auth/login", authH.Login)
 	mux.HandleFunc("POST "+args.RootPath+"/auth/logout", authH.Logout)
+	mux.HandleFunc("GET "+args.RootPath+"/auth/me", authH.Me)
 
 	discovery := caldav.NewDiscoveryHandler(args.RootPath)
 	caldavHandler := caldav.NewHandler(calStore, domainStore, authenticator, args.RootPath, args.NoAuth)

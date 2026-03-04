@@ -57,7 +57,7 @@ func NewMemoryStore() *MemoryStore {
 	}
 	defaultCal := &Calendar{
 		ID:          "default",
-		Name:        "Default Calendar",
+		Name:        "Timeslot-Calendar",
 		Description: "schedio default calendar",
 		Timezone:    "UTC",
 	}

@@ -35,6 +35,7 @@ type settingsResp struct {
 	Currency             string `json:"currency"`
 	AppointmentLocation  string `json:"appointment_location"`
 	SenderName           string `json:"sender_name"`
+	DefaultCalendarName  string `json:"default_calendar_name,omitempty"`
 	TandCFilename        string `json:"tandc_filename,omitempty"`
 }
 
@@ -47,6 +48,7 @@ type settingsInput struct {
 	Currency             *string `json:"currency"`
 	AppointmentLocation  *string `json:"appointment_location"`
 	SenderName           *string `json:"sender_name"`
+	DefaultCalendarName  *string `json:"default_calendar_name"`
 }
 
 func toResp(s *store.Settings) settingsResp {
@@ -57,6 +59,7 @@ func toResp(s *store.Settings) settingsResp {
 		Currency:             s.Currency,
 		AppointmentLocation:  s.AppointmentLocation,
 		SenderName:           s.SenderName,
+		DefaultCalendarName:  s.DefaultCalendarName,
 		TandCFilename:        s.TandCFilename,
 	}
 }
@@ -111,6 +114,9 @@ func (h *SettingsHandler) Put(w http.ResponseWriter, r *http.Request) {
 		if h.sender != nil {
 			h.sender.SetFromName(cur.SenderName)
 		}
+	}
+	if inp.DefaultCalendarName != nil {
+		cur.DefaultCalendarName = *inp.DefaultCalendarName
 	}
 
 	if err := h.st.UpdateSettings(r.Context(), cur); err != nil {

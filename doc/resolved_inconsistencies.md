@@ -234,3 +234,46 @@ display name configurable in the admin settings UI.
     store from `args.SenderName` (`--smtpSenderName`) at startup if not already set; synchronises the
     stored value into the email sender; registers GET and PUT routes for
     `/admin/api/v1/settings`.
+
+---
+
+## Calendar naming and timeslot read-path requirements — Resolved Inconsistency (NI32)
+
+Opened and resolved 2026-03-04 during the calendar rename and timeslot visual-state
+requirements addition.
+
+- **[NI32]** — The `DefaultCalendarName` general settings field was documented with a
+  fallback of `"Default Calendar"`. Renaming the CalDAV calendars to
+  `"Timeslot-Calendar"` and `"Booking-Calendar"` made the fallback inconsistent.
+  **Resolution:** the fallback for `DefaultCalendarName` is changed to
+  `"Timeslot-Calendar"`. The setting controls the display name of the
+  Timeslot-Calendar only (the `schedule-default-calendar-URL` calendar); the
+  Booking-Calendar always bears the fixed name `"Booking-Calendar"`.
+  - `doc/requirements.md`:
+    - Admin dashboard overview: updated reference from "CalDAV calendar display
+      name for staff users" to "Timeslot-Calendar display name".
+    - General Settings › Default CalDAV Calendar Name: updated fallback from
+      `"Default Calendar"` to `"Timeslot-Calendar"`; added note that the
+      Booking-Calendar name is fixed.
+    - Booking step 2: renamed `"Timeslots"` calendar references to
+      `"Timeslot-Calendar"`.
+    - Staff Tasks › Timeslot Management: renamed all `"Timeslots calendar"`
+      references to `"Timeslot-Calendar"`; added **Timeslot visual state in
+      CalDAV** paragraph (free → `TRANSP:TRANSPARENT` + `SUMMARY:"Free"`;
+      booked → `TRANSP:OPAQUE` + `SUMMARY:"<customer> (<service>)"`).
+    - NFR-2: updated "Timeslots and Bookings calendars" to
+      "Timeslot-Calendar and Booking-Calendar".
+  - `doc/components/caldav/requirements.md`:
+    - CDV-CAL-1 table: renamed calendar display names to `"Timeslot-Calendar"`
+      and `"Booking-Calendar"`.
+    - CDV-CAL-3 / CDV-CAL-4 headings and body text updated accordingly.
+    - CDV-TS-0: updated `"Timeslots calendar"` reference.
+    - CDV-BK-2 / CDV-ERR-3: updated `"bookings calendar"` references.
+    - Inserted new §7 **Timeslot Read Path (Timeslot-Calendar)** with:
+      - CDV-TS-READ-1: occupancy-check rule (including recurring series root
+        exception — always synthesised as free).
+      - CDV-TS-READ-2: free timeslot VEVENT shape (`SUMMARY:"Free"`,
+        `TRANSP:TRANSPARENT`).
+      - CDV-TS-READ-3: booked timeslot VEVENT shape
+        (`SUMMARY:"<contact.name> (<service.name>)"`, `TRANSP:OPAQUE`).
+    - Renumbered old §7–§17 to §8–§18.

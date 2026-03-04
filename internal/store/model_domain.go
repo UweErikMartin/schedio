@@ -177,4 +177,5 @@ type Settings struct {
 	AppointmentLocation  string // ICS LOCATION field
 	TandCFilename        string // filename within DATA_DIR
 	SenderName           string // display name used in the From: header of customer e-mails
+	DefaultCalendarName  string // display name of the Timeslot-Calendar in CalDAV clients; falls back to "Timeslot-Calendar" when empty
 }

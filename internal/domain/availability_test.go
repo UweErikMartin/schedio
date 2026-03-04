@@ -106,6 +106,9 @@ func (s *availStub) ListBookingsForSession(_ context.Context, _ string) ([]*stor
 func (s *availStub) ListBookingsForContact(_ context.Context, _ string) ([]*store.Booking, error) {
 	return nil, nil
 }
+func (s *availStub) ListAllBookingsInWindow(_ context.Context, _, _ time.Time) ([]*store.Booking, error) {
+	return nil, nil
+}
 func (s *availStub) GetSettings(_ context.Context) (*store.Settings, error) {
 	return &store.Settings{}, nil
 }

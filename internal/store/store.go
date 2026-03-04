@@ -215,6 +215,13 @@ type DomainStore interface {
 	// given staff user whose time window overlaps [start, end].
 	ListActiveBookingsInWindow(ctx context.Context, userID string, start, end time.Time) ([]*Booking, error)
 
+	// ListAllBookingsInWindow returns all non-cancelled Bookings across all
+	// staff users whose time window overlaps [start, end].
+	// Zero start/end means no bound.
+	// This is used by the CalDAV layer to synthesise events in the default
+	// calendar so that confirmed and reserved bookings appear to CalDAV clients.
+	ListAllBookingsInWindow(ctx context.Context, start, end time.Time) ([]*Booking, error)
+
 	// ListBookingsForContact returns all non-cancelled Bookings for contactID,
 	// ordered by StartAt ascending. Used for billing.
 	ListBookingsForContact(ctx context.Context, contactID string) ([]*Booking, error)

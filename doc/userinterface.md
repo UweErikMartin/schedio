@@ -1048,17 +1048,19 @@ each individual booking.
 #### 8.8.1 Component: `<x-settings-form>`
 
 **Responsibility** Edit form for general settings: no-show deadline, reminder
-lead time, sender name, currency, appointment location.
+lead time, sender name, currency, appointment location, default CalDAV calendar
+name.
 
 **Testable behaviours** — Independently verifiable assertions for unit and e2e tests.
 
 1. Fetches `GET /admin/api/v1/settings` on mount.
-1. Renders fields: No-show-Frist (Stunden), Aufbewahrungsfrist (Tage), Erinnerungsfrist (Tage), Absender-Name, Währung, Terminort.
+1. Renders fields: Kalenderbezeichnung, Absender-Name, Terminsort, Währung, No-show-Frist (Stunden), Aufbewahrungsfrist (Tage), Erinnerungsfrist (Tage).
 1. No-show deadline is a positive integer input.
 1. Retention period is a positive integer input (default 30); labelled "Aufbewahrungsfrist (Tage)".
 1. Reminder lead time is a positive integer input (default 1); labelled "Erinnerungsfrist (Tage)".
 1. Sender name is a free-text input (default "Schedio Buchungssystem"); labelled "Absender-Name".
 1. Currency is a free-text input; a dropdown of common ISO 4217 codes is offered as a datalist.
+1. Default CalDAV calendar name is a free-text input; labelled "Kalenderbezeichnung". Hint text states the fallback is "Default Calendar" when left empty. When saved with a non-empty value the default staff CalDAV calendar is immediately renamed in CalDAV clients.
 1. Saving calls `PUT /admin/api/v1/settings` with the updated values.
 1. On success displays a success toast.
 1. On error displays an inline error banner.

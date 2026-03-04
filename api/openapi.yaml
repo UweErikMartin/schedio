@@ -1315,6 +1315,11 @@ components:
         appointment_location:
           type: string
           example: 'Musterstraße 1, 10115 Berlin'
+        default_calendar_name:
+          type: string
+          nullable: true
+          description: Display name shown for the default CalDAV calendar in CalDAV clients. Falls back to "Default Calendar" when empty.
+          example: Meine Verfügbarkeit
         tandc_filename:
           type: string
           nullable: true
@@ -1339,3 +1344,7 @@ components:
           type: string
         appointment_location:
           type: string
+        default_calendar_name:
+          type: string
+          nullable: true
+          description: Display name for the default staff CalDAV calendar. Empty string resets to "Default Calendar".

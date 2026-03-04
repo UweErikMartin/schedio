@@ -72,3 +72,20 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	h.sessions.ClearCookie(w)
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// Me handles GET /auth/me.
+//
+// Returns the authenticated user's email and role if the session cookie is
+// valid; otherwise returns 401 Unauthorized.
+func (h *Handler) Me(w http.ResponseWriter, r *http.Request) {
+	session, err := h.sessions.ValidateCookie(r)
+	if err != nil {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"email": session.Email,
+		"role":  string(session.Role),
+	})
+}

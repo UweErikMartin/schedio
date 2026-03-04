@@ -724,6 +724,35 @@ func (s *MemoryStore) ListActiveBookingsInWindow(_ context.Context, userID strin
 	return result, nil
 }
 
+// ListAllBookingsInWindow implements DomainStore.
+// Returns all non-cancelled Bookings across all users whose time window
+// overlaps [start, end]. Zero start/end means no bound.
+func (s *MemoryStore) ListAllBookingsInWindow(_ context.Context, start, end time.Time) ([]*Booking, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var result []*Booking
+	for _, b := range s.bookings {
+		if b.State == BookingStateCancelled || b.State == BookingStateNoShow {
+			continue
+		}
+		if !start.IsZero() && !end.IsZero() {
+			if !b.StartAt.Before(end) || !start.Before(b.EndAt) {
+				continue
+			}
+		} else if !start.IsZero() && b.EndAt.Before(start) {
+			continue
+		} else if !end.IsZero() && b.StartAt.After(end) {
+			continue
+		}
+		cp := *b
+		result = append(result, &cp)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].StartAt.Before(result[j].StartAt)
+	})
+	return result, nil
+}
+
 // ListBookingsForContact implements DomainStore.
 func (s *MemoryStore) ListBookingsForContact(_ context.Context, contactID string) ([]*Booking, error) {
 	s.mu.RLock()
@@ -760,6 +789,15 @@ func (s *MemoryStore) UpdateSettings(_ context.Context, settings *Settings) erro
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.settings = *settings
+	// Sync the display name of the default calendar immediately so all
+	// subsequent ListCalendars / GetCalendar calls reflect the change.
+	if cal, ok := s.calendars["default"]; ok {
+		if settings.DefaultCalendarName != "" {
+			cal.Name = settings.DefaultCalendarName
+		} else {
+			cal.Name = "Timeslot-Calendar"
+		}
+	}
 	return nil
 }
 
