@@ -18,7 +18,7 @@ import (
 type availStub struct {
 	getService         func(id string) (*store.Service, error)
 	listStaff          func() ([]*store.Staff, error)
-	listTimeslots      func(userID string, start, end time.Time) ([]*store.Timeslot, error)
+	listAvailability   func(userID string, start, end time.Time) ([]*store.Availability, error)
 	listBookingsForDay func(date time.Time) ([]*store.Booking, error)
 	listActiveInWindow func(userID string, start, end time.Time) ([]*store.Booking, error)
 }
@@ -35,13 +35,13 @@ func (s *availStub) ListStaff(_ context.Context) ([]*store.Staff, error) {
 	}
 	return nil, nil
 }
-func (s *availStub) ListTimeslots(_ context.Context, userID string, start, end time.Time) ([]*store.Timeslot, error) {
-	if s.listTimeslots != nil {
-		return s.listTimeslots(userID, start, end)
+func (s *availStub) ListAvailability(_ context.Context, userID string, start, end time.Time) ([]*store.Availability, error) {
+	if s.listAvailability != nil {
+		return s.listAvailability(userID, start, end)
 	}
 	return nil, nil
 }
-func (s *availStub) ListRawTimeslots(_ context.Context, _ string) ([]*store.Timeslot, error) {
+func (s *availStub) ListRawAvailability(_ context.Context, _ string) ([]*store.Availability, error) {
 	return nil, nil
 }
 func (s *availStub) ListBookingsForDay(_ context.Context, date time.Time) ([]*store.Booking, error) {
@@ -69,15 +69,15 @@ func (s *availStub) ListServices(_ context.Context) ([]*store.Service, error) { 
 func (s *availStub) CreateService(_ context.Context, _ *store.Service) error  { return nil }
 func (s *availStub) UpdateService(_ context.Context, _ *store.Service) error  { return nil }
 func (s *availStub) DeleteService(_ context.Context, _ string) error          { return nil }
-func (s *availStub) GetTimeslot(_ context.Context, _, _ string) (*store.Timeslot, error) {
+func (s *availStub) GetAvailability(_ context.Context, _, _ string) (*store.Availability, error) {
 	return nil, store.ErrNotFound
 }
-func (s *availStub) UpsertTimeslot(_ context.Context, _ *store.Timeslot) error { return nil }
-func (s *availStub) DeleteTimeslot(_ context.Context, _, _ string) error       { return nil }
-func (s *availStub) DeleteTimeslotOverride(_ context.Context, _, _ string, _ time.Time) error {
+func (s *availStub) UpsertAvailability(_ context.Context, _ *store.Availability) error { return nil }
+func (s *availStub) DeleteAvailability(_ context.Context, _, _ string) error           { return nil }
+func (s *availStub) DeleteAvailabilityOverride(_ context.Context, _, _ string, _ time.Time) error {
 	return nil
 }
-func (s *availStub) DeleteTimeslotOverrides(_ context.Context, _, _ string) error { return nil }
+func (s *availStub) DeleteAvailabilityOverrides(_ context.Context, _, _ string) error { return nil }
 func (s *availStub) GetOrCreateContact(_ context.Context, _ string, c *store.Contact) (*store.Contact, error) {
 	return c, nil
 }
@@ -215,8 +215,8 @@ func defaultStaff() []*store.Staff {
 	return []*store.Staff{{ID: testStaffID, Role: store.UserRoleStaff}}
 }
 
-func timeslotFor(staffID string, startH, startM, endH, endM int) *store.Timeslot {
-	return &store.Timeslot{
+func availabilityFor(staffID string, startH, startM, endH, endM int) *store.Availability {
+	return &store.Availability{
 		ID:      "ts-1",
 		UserID:  staffID,
 		StartAt: time.Date(2026, 3, 2, startH, startM, 0, 0, time.UTC),
@@ -260,7 +260,7 @@ func TestListAvailable_NoTimeslots(t *testing.T) {
 			return defaultService(60, 0), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
-		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
+		listAvailability: func(uid string, s, e time.Time) ([]*store.Availability, error) {
 			return nil, nil
 		},
 	})
@@ -280,8 +280,8 @@ func TestListAvailable_BasicSlots(t *testing.T) {
 			return defaultService(60, 0), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
-		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
+		listAvailability: func(uid string, s, e time.Time) ([]*store.Availability, error) {
+			return []*store.Availability{availabilityFor(uid, 8, 0, 9, 0)}, nil
 		},
 	})
 	slots, err := svc.ListAvailable(context.Background(), testSvcID, testDay)
@@ -305,8 +305,8 @@ func TestListAvailable_TooNarrow(t *testing.T) {
 			return defaultService(60, 0), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
-		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 8, 30)}, nil
+		listAvailability: func(uid string, s, e time.Time) ([]*store.Availability, error) {
+			return []*store.Availability{availabilityFor(uid, 8, 0, 8, 30)}, nil
 		},
 	})
 	slots, err := svc.ListAvailable(context.Background(), testSvcID, testDay)
@@ -325,8 +325,8 @@ func TestListAvailable_SmallerServiceFitsInLargerSlot(t *testing.T) {
 			return defaultService(45, 0), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
-		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
+		listAvailability: func(uid string, s, e time.Time) ([]*store.Availability, error) {
+			return []*store.Availability{availabilityFor(uid, 8, 0, 9, 0)}, nil
 		},
 	})
 	slots, err := svc.ListAvailable(context.Background(), testSvcID, testDay)
@@ -355,10 +355,10 @@ func TestListAvailable_BookedWindowExcluded(t *testing.T) {
 			return defaultService(60, 0), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
-		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{
-				timeslotFor(uid, 8, 0, 9, 0),
-				timeslotFor(uid, 9, 0, 10, 0),
+		listAvailability: func(uid string, s, e time.Time) ([]*store.Availability, error) {
+			return []*store.Availability{
+				availabilityFor(uid, 8, 0, 9, 0),
+				availabilityFor(uid, 9, 0, 10, 0),
 			}, nil
 		},
 		listActiveInWindow: func(uid string, start, end time.Time) ([]*store.Booking, error) {
@@ -389,8 +389,8 @@ func TestListAvailable_DailyLimitReached(t *testing.T) {
 			return defaultService(60, 2 /* limit */), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
-		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
+		listAvailability: func(uid string, s, e time.Time) ([]*store.Availability, error) {
+			return []*store.Availability{availabilityFor(uid, 8, 0, 9, 0)}, nil
 		},
 		listBookingsForDay: func(date time.Time) ([]*store.Booking, error) {
 			return []*store.Booking{
@@ -415,8 +415,8 @@ func TestListAvailable_DailyLimitNotYetReached(t *testing.T) {
 			return defaultService(60, 3), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
-		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
+		listAvailability: func(uid string, s, e time.Time) ([]*store.Availability, error) {
+			return []*store.Availability{availabilityFor(uid, 8, 0, 9, 0)}, nil
 		},
 		listBookingsForDay: func(date time.Time) ([]*store.Booking, error) {
 			return []*store.Booking{
@@ -441,8 +441,8 @@ func TestListAvailable_CancelledBookingDoesNotCountTowardLimit(t *testing.T) {
 			return defaultService(60, 1), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
-		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
+		listAvailability: func(uid string, s, e time.Time) ([]*store.Availability, error) {
+			return []*store.Availability{availabilityFor(uid, 8, 0, 9, 0)}, nil
 		},
 		listBookingsForDay: func(date time.Time) ([]*store.Booking, error) {
 			return []*store.Booking{
@@ -471,8 +471,8 @@ func TestListAvailable_ZeroDailyLimit_Unlimited(t *testing.T) {
 			return defaultService(60, 0 /* unlimited */), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
-		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
+		listAvailability: func(uid string, s, e time.Time) ([]*store.Availability, error) {
+			return []*store.Availability{availabilityFor(uid, 8, 0, 9, 0)}, nil
 		},
 		listBookingsForDay: func(date time.Time) ([]*store.Booking, error) {
 			return occupied, nil
@@ -498,8 +498,8 @@ func TestListAvailable_MultipleStaff(t *testing.T) {
 			return defaultService(60, 0), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return staff, nil },
-		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{{
+		listAvailability: func(uid string, s, e time.Time) ([]*store.Availability, error) {
+			return []*store.Availability{{
 				ID:      "ts-" + uid,
 				UserID:  uid,
 				StartAt: time.Date(2026, 3, 2, 8, 0, 0, 0, time.UTC),
@@ -531,8 +531,8 @@ func TestListAvailable_OtherServiceBookingDoesNotBlockWindow(t *testing.T) {
 			return defaultService(60, 1 /* limit */), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
-		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
-			return []*store.Timeslot{timeslotFor(uid, 8, 0, 9, 0)}, nil
+		listAvailability: func(uid string, s, e time.Time) ([]*store.Availability, error) {
+			return []*store.Availability{availabilityFor(uid, 8, 0, 9, 0)}, nil
 		},
 		listBookingsForDay: func(date time.Time) ([]*store.Booking, error) {
 			return []*store.Booking{
@@ -558,10 +558,10 @@ func TestListAvailableForDateRange_MultipleDays(t *testing.T) {
 			return defaultService(60, 0), nil
 		},
 		listStaff: func() ([]*store.Staff, error) { return defaultStaff(), nil },
-		listTimeslots: func(uid string, s, e time.Time) ([]*store.Timeslot, error) {
+		listAvailability: func(uid string, s, e time.Time) ([]*store.Availability, error) {
 			// Only return a timeslot when queried for March 2.
 			if s.Day() == 2 {
-				return []*store.Timeslot{{
+				return []*store.Availability{{
 					ID:      "ts-1",
 					UserID:  uid,
 					StartAt: time.Date(2026, 3, 2, 8, 0, 0, 0, time.UTC),
@@ -672,7 +672,7 @@ func fixtureStore(t *testing.T) *store.MemoryStore {
 		{"ts-anna-slot3-2026", 10, 0, 11, 0},
 	}
 	for _, ws := range weekdaySlots {
-		if err := ms.UpsertTimeslot(ctx, &store.Timeslot{
+		if err := ms.UpsertAvailability(ctx, &store.Availability{
 			ID:        ws.id,
 			CalDAVUID: ws.id,
 			UserID:    annaID,
@@ -685,7 +685,7 @@ func fixtureStore(t *testing.T) *store.MemoryStore {
 	}
 
 	// One-off Saturday 60-minute slot: 2026-03-07 09:00–10:00 UTC.
-	if err := ms.UpsertTimeslot(ctx, &store.Timeslot{
+	if err := ms.UpsertAvailability(ctx, &store.Availability{
 		ID:        "ts-anna-saturday-2026-03-07",
 		CalDAVUID: "ts-anna-saturday-2026-03-07",
 		UserID:    annaID,
@@ -977,8 +977,8 @@ func TestListAvailable_RecurringTimeslot(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	// Seed the recurring timeslot (seed date = 2026-03-02, weekly Mon–Fri).
-	if err := ms.UpsertTimeslot(ctx, &store.Timeslot{
+	// Seed the recurring availability window (seed date = 2026-03-02, weekly Mon–Fri).
+	if err := ms.UpsertAvailability(ctx, &store.Availability{
 		ID:        "ts-recur-1",
 		CalDAVUID: "ts-recur-1",
 		UserID:    testStaffID,

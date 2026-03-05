@@ -154,11 +154,11 @@ type DomainStore interface {
     UpdateService(ctx, s *Service) error
     DeleteService(ctx, id) error        // returns ErrConflict if active bookings exist
 
-    // --- Timeslots (availability windows) ---
-    ListTimeslots(ctx, userID string, start, end time.Time) ([]*Timeslot, error)
-    GetTimeslot(ctx, userID, uid string) (*Timeslot, error)
-    UpsertTimeslot(ctx, t *Timeslot) error
-    DeleteTimeslot(ctx, userID, uid string) error
+    // --- Availability windows ---
+    ListAvailability(ctx, userID string, start, end time.Time) ([]*Availability, error)
+    GetAvailability(ctx, userID, uid string) (*Availability, error)
+    UpsertAvailability(ctx, a *Availability) error
+    DeleteAvailability(ctx, userID, uid string) error
 
     // --- Contacts ---
     GetOrCreateContact(ctx, email string, c *Contact) (*Contact, error)
@@ -249,7 +249,7 @@ User
   updated_at          TIMESTAMPTZ
 
 -- Staff is an alias view / sub-set of User where role = 'staff'.
--- Timeslot and Booking foreign keys reference User.id (staff users only).
+-- Availability and Booking foreign keys reference User.id (staff users only).
 
 Service
   id                UUID  PK
@@ -262,7 +262,7 @@ Service
   created_at        TIMESTAMPTZ
   updated_at        TIMESTAMPTZ
 
-Timeslot
+Availability
   id              UUID  PK
   user_id         UUID  FK → User  -- must be a user with role = 'staff'
   caldav_uid      TEXT  UNIQUE  -- iCal UID
@@ -299,7 +299,7 @@ Booking
   session_id      UUID  FK → BookingSession
   service_id      UUID  FK → Service
   contact_id      UUID  FK → Contact
-  user_id         UUID  FK → User   -- staff user who owns the booked timeslot
+  user_id         UUID  FK → User   -- staff user who owns the booked availability window
   start_at        TIMESTAMPTZ  NOT NULL
   end_at          TIMESTAMPTZ  NOT NULL
   state           TEXT  -- see §6.2
@@ -435,34 +435,34 @@ routes.
 ```text
 /caldav/user/{staffID}/
   calendars/
-    timeslots/          ← Timeslots calendar (admin manages availability)
+    availability/       ← Availability-Calendar (admin manages availability)
     bookings/           ← Bookings calendar (booking events appear here)
 ```
 
-The `Timeslots` calendar is the admin's availability canvas, managed exclusively
+The `Availability-Calendar` is the admin's availability canvas, managed exclusively
 via Apple Calendar or any CalDAV-capable client. The `Bookings` calendar is
 read-only for CalDAV clients; booking events are written there by schedio's
 domain layer, not by CalDAV PUT requests from clients.
 
-### 8.2 Timeslot write path (PUT from Apple Calendar)
+### 8.2 Availability write path (PUT from Apple Calendar)
 
 ```text
-PUT /caldav/user/{staffID}/calendars/timeslots/{uid}.ics
+PUT /caldav/user/{staffID}/calendars/availability/{uid}.ics
   1. caldav.Handler receives request
   2. Parse iCal data from request body
-  3. DomainStore.UpsertTimeslot(ctx, staffID, parsed)
+  3. DomainStore.UpsertAvailability(ctx, staffID, parsed)
   4. Conflict check: DomainStore.ListActiveBookingsInWindow(ctx, staffID, old_start, old_end)
   5. If conflicts → email.SendAdminConflictNotification(conflicts)
   6. Return 201 Created / 204 No Content with new ETag
 ```
 
-### 8.3 Timeslot delete path (DELETE from Apple Calendar)
+### 8.3 Availability delete path (DELETE from Apple Calendar)
 
 ```text
-DELETE /caldav/user/{staffID}/calendars/timeslots/{uid}.ics
+DELETE /caldav/user/{staffID}/calendars/availability/{uid}.ics
   1. DomainStore.ListActiveBookingsInWindow for deleted window
   2. If conflicts → email.SendAdminConflictNotification(conflicts)
-  3. DomainStore.DeleteTimeslot(ctx, staffID, uid)
+  3. DomainStore.DeleteAvailability(ctx, staffID, uid)
   4. Return 204 No Content
 ```
 
@@ -495,7 +495,7 @@ PROPFIND /caldav/user/{staffID}/calendars/bookings/
 The availability check and the booking write are executed inside a single
 atomic critical section:
 
-- **PostgreSQL backend**: a `SELECT … FOR UPDATE` on the timeslot row plus an
+- **PostgreSQL backend**: a `SELECT … FOR UPDATE` on the availability row plus an
   overlap check query run inside a serializable transaction. If a conflicting
   booking is found the transaction is rolled back and `ErrConflict` is returned.
 - **Memory backend** (development only): a `sync.Mutex` is held for the
@@ -609,7 +609,7 @@ internal/email/templates/
 | `change-summary` | Customer reschedules a booking | Customer |
 | `cancellation` | Customer cancels a booking | Customer |
 | `admin-notify` | Customer submits session | Administrator (`ADMIN_EMAIL`) |
-| `admin-conflict` | Timeslot modification / deletion affects active bookings | Administrator |
+| `admin-conflict` | Availability modification / deletion affects active bookings | Administrator |
 | `retention-notify` | Contact's `last_appointment_end_at + retention_period_days ≤ now` and `retention_state = 'active'` | All Staff users (all users with `role = 'staff'`) |
 | `billing-invoice` | Contact's `last_appointment_end_at ≤ now` and `billing_generated = false` | All Staff users |
 | `reminder` | Confirmed booking whose `start_at` is exactly `reminder_lead_time_days` calendar days from today and `reminded_at IS NULL` | Customer |
@@ -993,7 +993,7 @@ type Backend interface {
    avoid mixing CalDAV-layer and domain-layer structs in one file:
 
 ```go
-Staff, Service, Timeslot, Contact, BookingSession, Booking,
+Staff, Service, Availability, Contact, BookingSession, Booking,
 BookingState, Settings, HMACSecret
 ```
 
@@ -1012,12 +1012,12 @@ protected by `sync.RWMutex`.
 **Required changes:**
 
 1. Add `DomainStore` implementation: in-process maps for all domain entities
-   (`services`, `timeslots`, `contacts`, `sessions`, `bookings`, `settings`,
+   (`services`, `availability`, `contacts`, `sessions`, `bookings`, `settings`,
    `hmacSecret`), all covered by the existing `sync.RWMutex`.
 2. `CreateBooking` is the critical method: it must hold the write lock for the
    full duration of the overlap check and the insert, preventing any concurrent
    goroutine from inserting a conflicting booking between the check and the write.
-3. Add the two per-staff CalDAV calendars (`timeslots`, `bookings`) to the
+3. Add the two per-staff CalDAV calendars (`availability`, `bookings`) to the
    calendar map at initialisation, replacing the single hard-coded `"default"`
    calendar.
 4. The existing `MemoryStore` implements `CalendarStore`; after this change it
@@ -1053,12 +1053,12 @@ associated `--dummy` flag references in `cmdline.go` and `main.go`.
 
 1. Change the constructor to accept `store.Backend` instead of `store.CalendarStore`.
    The CalDAV layer needs access to `DomainStore` methods for write translation.
-2. **Timeslot write path**: when a `PUT` arrives on a path underneath
-   `.../timeslots/`, parse the iCal body and call
-   `DomainStore.UpsertTimeslot`. After the write, call
+2. **Availability write path**: when a `PUT` arrives on a path underneath
+   `.../availability/`, parse the iCal body and call
+   `DomainStore.UpsertAvailability`. After the write, call
    `DomainStore.ListActiveBookingsInWindow` for the old and new time window; if
    conflicts exist, call `email.SendAdminConflictNotification`. Do **not** forward
-   to the inner `go-webdav` handler for timeslot writes; the store is the source
+   to the inner `go-webdav` handler for availability writes; the store is the source
    of truth.
 3. **Booking calendar write guard**: reject `PUT`/`DELETE` requests to the
    `.../bookings/` calendar with `405 Method Not Allowed`. Bookings are written
@@ -1085,10 +1085,10 @@ Bidirectional conversion between `store.Event` and `go-ical` VEVENT:
 
 **Required changes:**
 
-1. Add `timeslotToObject(t *store.Timeslot) *ical.Component` — synthesises a
-   VEVENT representing a timeslot availability window for the CalDAV calendar.
-2. Add `objectToTimeslot(obj *ical.Component) (*store.Timeslot, error)` — parses
-   a VEVENT from an Apple Calendar `PUT` into a `store.Timeslot` (reads `RRULE`,
+1. Add `availabilityToObject(a *store.Availability) *ical.Component` — synthesises a
+   VEVENT representing an availability window for the Availability-Calendar.
+2. Add `objectToAvailability(obj *ical.Component) (*store.Availability, error)` — parses
+   a VEVENT from an Apple Calendar `PUT` into a `store.Availability` (reads `RRULE`,
    `RECURRENCE-ID`, `DTSTART`, `DTEND`, `UID`, `LAST-MODIFIED`).
 3. Add `bookingToObject(b *store.Booking, svc *store.Service, settings *store.Settings, adminEmail string) *ical.Component` — synthesises the VEVENT for a booking (§8.5).
 4. Keep existing `icalToEvent` and `eventToObject` for the memory-backend path.

@@ -40,7 +40,7 @@ func newCalendarNameMux(st *calstore.MemoryStore) http.Handler {
 }
 
 // TestDefaultCalendarName_PropfindHomeSetDepth1 verifies that a fresh store
-// returns "Timeslot-Calendar" in the Depth:1 PROPFIND on the calendar home set
+// returns "Booking-Calendar" in the Depth:1 PROPFIND on the calendar home set
 // — step 4 of the iPad initial account-setup sequence.
 func TestDefaultCalendarName_PropfindHomeSetDepth1(t *testing.T) {
 	st := calstore.NewMemoryStore()
@@ -55,8 +55,8 @@ func TestDefaultCalendarName_PropfindHomeSetDepth1(t *testing.T) {
 		t.Fatalf("status = %d, want %d\nbody: %s", rec.Code, http.StatusMultiStatus, rec.Body)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Timeslot-Calendar") {
-		t.Fatalf("Depth:1 home PROPFIND missing default name 'Timeslot-Calendar':\n%s", body)
+	if !strings.Contains(body, "Booking-Calendar") {
+		t.Fatalf("Depth:1 home PROPFIND missing default name 'Booking-Calendar':\n%s", body)
 	}
 }
 
@@ -91,8 +91,8 @@ func TestCustomCalendarName_PropfindHomeSetDepth1(t *testing.T) {
 	if !strings.Contains(body, "Buchungen") {
 		t.Fatalf("Depth:1 home PROPFIND missing custom name 'Buchungen':\n%s", body)
 	}
-	if strings.Contains(body, ">Timeslot-Calendar<") {
-		t.Fatalf("Depth:1 home PROPFIND still contains default name 'Timeslot-Calendar' after settings update:\n%s", body)
+	if strings.Contains(body, ">Booking-Calendar<") {
+		t.Fatalf("Depth:1 home PROPFIND still contains default name 'Booking-Calendar' after settings update:\n%s", body)
 	}
 }
 
@@ -125,14 +125,14 @@ func TestCustomCalendarName_PropfindCollectionDepth0(t *testing.T) {
 	if !strings.Contains(body, "Termine") {
 		t.Fatalf("Depth:0 collection PROPFIND missing custom name 'Termine':\n%s", body)
 	}
-	if strings.Contains(body, ">Timeslot-Calendar<") {
-		t.Fatalf("Depth:0 collection PROPFIND still shows default name 'Timeslot-Calendar':\n%s", body)
+	if strings.Contains(body, ">Booking-Calendar<") {
+		t.Fatalf("Depth:0 collection PROPFIND still shows default name 'Booking-Calendar':\n%s", body)
 	}
 }
 
 // TestCalendarNameReset_EmptyStringFallsBackToDefault verifies the fallback
 // rule: when DefaultCalendarName is set back to "" the name reverts to
-// "Timeslot-Calendar" rather than becoming blank.
+// "Booking-Calendar" rather than becoming blank.
 func TestCalendarNameReset_EmptyStringFallsBackToDefault(t *testing.T) {
 	st := calstore.NewMemoryStore()
 
@@ -158,8 +158,8 @@ func TestCalendarNameReset_EmptyStringFallsBackToDefault(t *testing.T) {
 		t.Fatalf("status = %d, want %d\nbody: %s", rec.Code, http.StatusMultiStatus, rec.Body)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Timeslot-Calendar") {
-		t.Fatalf("Depth:1 home PROPFIND after reset should contain 'Timeslot-Calendar':\n%s", body)
+	if !strings.Contains(body, "Booking-Calendar") {
+		t.Fatalf("Depth:1 home PROPFIND after reset should contain 'Booking-Calendar':\n%s", body)
 	}
 	if strings.Contains(body, "Buchungen") {
 		t.Fatalf("Depth:1 home PROPFIND after reset still shows old custom name:\n%s", body)

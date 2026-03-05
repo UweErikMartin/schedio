@@ -6,7 +6,7 @@
 // The three main concerns are:
 //   - Availability calculation (this file)
 //   - Booking lifecycle management (booking.go)
-//   - Conflict detection for timeslot changes (conflict.go)
+//   - Conflict detection for availability changes (conflict.go)
 package domain
 
 import (
@@ -20,11 +20,11 @@ import (
 type Slot struct {
 	StartAt time.Time
 	EndAt   time.Time
-	UserID  string // staff member who owns the timeslot
+	UserID  string // staff member who owns the availability window
 }
 
 // AvailabilityService calculates available booking slots for a given service
-// on a given date by consulting the staff timeslot calendar and excluding
+// on a given date by consulting the staff availability calendar and excluding
 // already-booked windows.
 type AvailabilityService struct {
 	store store.DomainStore
@@ -41,13 +41,13 @@ func NewAvailabilityService(st store.DomainStore) *AvailabilityService {
 // Algorithm:
 //  1. Load the service to get DurationMinutes and DailyLimit.
 //  2. List all staff members.
-//  3. For each staff member list their timeslots that overlap the given day.
-//  4. For each timeslot: skip if service duration exceeds the timeslot window.
-//  5. Check whether the timeslot start window is already booked.
+//  3. For each staff member list their availability records that overlap the given day.
+//  4. For each availability record: skip if service duration exceeds the record window.
+//  5. Check whether the availability start window is already booked.
 //  6. Apply daily-limit: count confirmed+reserved bookings for the day against limit.
 //
-// Each timeslot produces at most one booking slot. The slot start time is the
-// timeslot's StartAt; the slot end time is StartAt + service duration.
+// Each availability record produces at most one booking slot. The slot start time is the
+// record's StartAt; the slot end time is StartAt + service duration.
 func (svc *AvailabilityService) ListAvailable(ctx context.Context, serviceID string, date time.Time) ([]Slot, error) {
 	service, err := svc.store.GetService(ctx, serviceID)
 	if err != nil {
@@ -72,12 +72,12 @@ func (svc *AvailabilityService) ListAvailable(ctx context.Context, serviceID str
 
 	var slots []Slot
 	for _, member := range staff {
-		timeslots, err := svc.store.ListTimeslots(ctx, member.ID, dayStart, dayEnd)
+		availability, err := svc.store.ListAvailability(ctx, member.ID, dayStart, dayEnd)
 		if err != nil {
 			return nil, err
 		}
-		for _, ts := range timeslots {
-			// Skip timeslots that are too short for the service.
+		for _, ts := range availability {
+			// Skip records that are too short for the service.
 			if duration > ts.EndAt.Sub(ts.StartAt) {
 				continue
 			}
@@ -88,7 +88,7 @@ func (svc *AvailabilityService) ListAvailable(ctx context.Context, serviceID str
 				return nil, err
 			}
 			if len(busy) > 0 {
-				continue // timeslot already booked
+				continue // availability window already booked
 			}
 			if service.DailyLimit > 0 && activeToday >= service.DailyLimit {
 				continue // daily limit reached

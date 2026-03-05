@@ -52,7 +52,7 @@ func main() {
 	}
 	if len(args.Timeslots) > 0 {
 		klog.Infof("syncing %d timeslots into domain store", len(args.Timeslots))
-		if err := syncTimeslotsFromConfig(args.Timeslots, domainStore); err != nil {
+		if err := syncAvailabilityFromConfig(args.Timeslots, domainStore); err != nil {
 			klog.Fatalf("error syncing timeslots: %v", err)
 		}
 	}
@@ -114,21 +114,21 @@ func syncUsersFromConfig(entries []config.UserEntry, st calstore.DomainStore) er
 	return st.SyncUsers(context.Background(), users)
 }
 
-// syncTimeslotsFromConfig converts the config.TimeslotEntry list (read from
-// -availabilityFile) into store.Timeslot values and upserts them into the
+// syncAvailabilityFromConfig converts the config.TimeslotEntry list (read from
+// -availabilityFile) into store.Availability values and upserts them into the
 // domain store. Each entry is idempotent: re-running with the same file
 // produces the same in-memory state.
-func syncTimeslotsFromConfig(entries []config.TimeslotEntry, st calstore.DomainStore) error {
+func syncAvailabilityFromConfig(entries []config.TimeslotEntry, st calstore.DomainStore) error {
 	for _, e := range entries {
 		start, err := time.Parse(time.RFC3339, e.StartAt)
 		if err != nil {
-			return fmt.Errorf("timeslot %q: invalid start_at %q: %w", e.UID, e.StartAt, err)
+			return fmt.Errorf("availability %q: invalid start_at %q: %w", e.UID, e.StartAt, err)
 		}
 		end, err := time.Parse(time.RFC3339, e.EndAt)
 		if err != nil {
-			return fmt.Errorf("timeslot %q: invalid end_at %q: %w", e.UID, e.EndAt, err)
+			return fmt.Errorf("availability %q: invalid end_at %q: %w", e.UID, e.EndAt, err)
 		}
-		ts := &calstore.Timeslot{
+		ts := &calstore.Availability{
 			ID:        calstore.NewID(),
 			UserID:    e.UserID,
 			CalDAVUID: e.UID,
@@ -136,8 +136,8 @@ func syncTimeslotsFromConfig(entries []config.TimeslotEntry, st calstore.DomainS
 			EndAt:     end,
 			RRule:     e.RRule,
 		}
-		if err := st.UpsertTimeslot(context.Background(), ts); err != nil {
-			return fmt.Errorf("upsert timeslot %q: %w", e.UID, err)
+		if err := st.UpsertAvailability(context.Background(), ts); err != nil {
+			return fmt.Errorf("upsert availability %q: %w", e.UID, err)
 		}
 	}
 	return nil

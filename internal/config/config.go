@@ -67,9 +67,9 @@ type TimeslotEntry struct {
 	RRule   string `yaml:"rrule,omitempty"` // iCal RRULE value; empty for single events
 }
 
-// availabilityFile is the on-disk envelope that wraps the list of timeslots.
+// availabilityFile is the on-disk envelope that wraps the list of availability windows.
 type availabilityFile struct {
-	Timeslots []TimeslotEntry `yaml:"timeslots"`
+	Timeslots []TimeslotEntry `yaml:"availability"`
 }
 
 // Config holds all runtime configuration derived from flags, environment

@@ -11,7 +11,7 @@ import "time"
 type UserRole string
 
 const (
-	// UserRoleStaff identifies a user who manages timeslots and reviews bookings.
+	// UserRoleStaff identifies a user who manages availability windows and reviews bookings.
 	UserRoleStaff UserRole = "staff"
 	// UserRoleAdministrator identifies a user who manages services, settings,
 	// and other administrators.
@@ -19,7 +19,7 @@ const (
 )
 
 // User represents an admin or staff account. Staff users (Role == UserRoleStaff)
-// are the foreign-key target for Timeslot and Booking records.
+// are the foreign-key target for Availability and Booking records.
 type User struct {
 	ID                string
 	Email             string // unique; also the CalDAV principal name for staff
@@ -50,15 +50,15 @@ type Service struct {
 	UpdatedAt       time.Time
 }
 
-// Timeslot is an availability window managed by a staff user via CalDAV.
-// A recurring event is represented by a single Timeslot with a non-empty RRule.
+// Availability is an availability window managed by a staff user via CalDAV.
+// A recurring event is represented by a single Availability with a non-empty RRule.
 // Individual overrides of a recurring series carry a non-zero RecurrenceID.
 // The composite key (UserID, CalDAVUID, RecurrenceID) uniquely identifies each
 // record; series roots have a zero RecurrenceID.
-type Timeslot struct {
+type Availability struct {
 	ID           string
 	UserID       string    // FK → User (must be role = "staff")
-	CalDAVUID    string    // iCal UID; globally unique across all timeslots
+	CalDAVUID    string    // iCal UID; globally unique across all availability records
 	CalDAVETag   string    // opaque version token for conditional requests
 	StartAt      time.Time // always stored in UTC
 	EndAt        time.Time // always stored in UTC
@@ -128,7 +128,7 @@ type Booking struct {
 	SessionID    string
 	ServiceID    string
 	ContactID    string
-	UserID       string // staff user who owns the booked timeslot
+	UserID       string // staff user who owns the booked availability window
 	StartAt      time.Time
 	EndAt        time.Time
 	State        BookingState
@@ -177,5 +177,5 @@ type Settings struct {
 	AppointmentLocation  string // ICS LOCATION field
 	TandCFilename        string // filename within DATA_DIR
 	SenderName           string // display name used in the From: header of customer e-mails
-	DefaultCalendarName  string // display name of the Timeslot-Calendar in CalDAV clients; falls back to "Timeslot-Calendar" when empty
+	DefaultCalendarName  string // display name of the Booking-Calendar in CalDAV clients; falls back to "Booking-Calendar" when empty
 }

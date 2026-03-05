@@ -115,46 +115,46 @@ type DomainStore interface {
 	// active (non-cancelled) bookings that reference the service.
 	DeleteService(ctx context.Context, id string) error
 
-	// ── Timeslots (availability windows) ──────────────────────────────────
+	// ── Availability (availability windows) ──────────────────────────────────
 
-	// ListTimeslots returns all Timeslots for the given staff user whose time
+	// ListAvailability returns all Availability records for the given staff user whose time
 	// window overlaps [start, end]. Zero start/end means no bound.
-	// Recurring timeslots are expanded into individual occurrences within the
+	// Recurring availability records are expanded into individual occurrences within the
 	// requested range – use this for availability / booking decisions.
-	ListTimeslots(ctx context.Context, userID string, start, end time.Time) ([]*Timeslot, error)
+	ListAvailability(ctx context.Context, userID string, start, end time.Time) ([]*Availability, error)
 
-	// ListRawTimeslots returns the raw, unexpanded Timeslot records for
+	// ListRawAvailability returns the raw, unexpanded Availability records for
 	// userID – one entry per CalDAVUID with the RRule field intact.
-	// Unlike ListTimeslots, recurring timeslots are NOT expanded.
+	// Unlike ListAvailability, recurring records are NOT expanded.
 	// This is intended for the CalDAV layer, which sends RRULE VEVENTs to
 	// calendar clients and lets the client expand them.
-	ListRawTimeslots(ctx context.Context, userID string) ([]*Timeslot, error)
+	ListRawAvailability(ctx context.Context, userID string) ([]*Availability, error)
 
-	// GetTimeslot returns the Timeslot identified by its CalDAV UID. Returns
+	// GetAvailability returns the Availability record identified by its CalDAV UID. Returns
 	// ErrNotFound when the UID does not exist or belongs to a different user.
-	GetTimeslot(ctx context.Context, userID, uid string) (*Timeslot, error)
+	GetAvailability(ctx context.Context, userID, uid string) (*Availability, error)
 
-	// UpsertTimeslot creates or replaces the Timeslot identified by its
+	// UpsertAvailability creates or replaces the Availability record identified by its
 	// CalDAVUID. If a record with the same CalDAVUID exists, it is updated.
-	UpsertTimeslot(ctx context.Context, t *Timeslot) error
+	UpsertAvailability(ctx context.Context, t *Availability) error
 
-	// DeleteTimeslot removes the Timeslot identified by its CalDAV UID.
+	// DeleteAvailability removes the Availability record identified by its CalDAV UID.
 	// For a series root (RecurrenceID == zero) this removes only the root
-	// record; call DeleteTimeslotOverrides separately to cascade to overrides.
+	// record; call DeleteAvailabilityOverrides separately to cascade to overrides.
 	// Returns ErrNotFound when the UID does not exist or belongs to a
 	// different user.
-	DeleteTimeslot(ctx context.Context, userID, uid string) error
+	DeleteAvailability(ctx context.Context, userID, uid string) error
 
-	// DeleteTimeslotOverride removes the single override record identified by
+	// DeleteAvailabilityOverride removes the single override record identified by
 	// (userID, uid, recurrenceID). Returns ErrNotFound when no matching
 	// override exists.
-	DeleteTimeslotOverride(ctx context.Context, userID, uid string, recurrenceID time.Time) error
+	DeleteAvailabilityOverride(ctx context.Context, userID, uid string, recurrenceID time.Time) error
 
-	// DeleteTimeslotOverrides removes all override records whose CalDAVUID
+	// DeleteAvailabilityOverrides removes all override records whose CalDAVUID
 	// equals uid and whose RecurrenceID is non-zero. This is the cascade
-	// step used when deleting a recurring series root (CDV-TS-2 Case B).
+	// step used when deleting a recurring series root (CDV-AVAIL-2 Case B).
 	// Returns nil (not ErrNotFound) when no overrides exist.
-	DeleteTimeslotOverrides(ctx context.Context, userID, uid string) error
+	DeleteAvailabilityOverrides(ctx context.Context, userID, uid string) error
 
 	// ── Contacts ─────────────────────────────────────────────────────────
 

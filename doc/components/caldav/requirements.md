@@ -9,7 +9,7 @@ and iPadOS.
 
 The facade is **not** an independent data store. It is a read/write view over the
 domain store (PostgreSQL in production, `MemoryStore` in development). All domain
-data — timeslots and bookings — originate from and are persisted to the domain
+data — availability and bookings — originate from and are persisted to the domain
 store. The CalDAV protocol surface is translated into domain operations; no
 CalDAV-native persistence is introduced.
 
@@ -128,7 +128,7 @@ Each authenticated Staff user has exactly two calendars served under
 
 | Calendar ID | Display Name | Writable by CalDAV client |
 | --- | --- | --- |
-| `timeslots` | Timeslot-Calendar | Yes |
+| `availability` | Availability-Calendar | Yes |
 | `bookings` | Booking-Calendar | No |
 
 The calendar set is determined by the server; clients must not be permitted to
@@ -140,12 +140,12 @@ create new calendars (`MKCALENDAR`).
 not abort client synchronisation (i.e. `405 Method Not Allowed` must not be
 returned, as some clients interpret it as a fatal error and stop syncing).
 
-### CDV-CAL-3 — Timeslot-Calendar
+### CDV-CAL-3 — Availability-Calendar
 
-The **Timeslot-Calendar** represents the Staff user's general, service-agnostic
+The **Availability-Calendar** represents the Staff user's general, service-agnostic
 availability windows. All CRUD operations initiated by the CalDAV client on this
-calendar must be translated into domain store operations on `Timeslot` records.
-See §6 (Timeslot Write Path) and §7 (Timeslot Read Path).
+calendar must be translated into domain store operations on `Availability` records.
+See §6 (Availability Write Path) and §7 (Availability Read Path).
 
 ### CDV-CAL-4 — Booking-Calendar
 
@@ -156,13 +156,13 @@ records. Booking events are created exclusively by the domain layer. `PUT` and
 
 ---
 
-## 6. Timeslot Write Path
+## 6. Availability Write Path
 
-### CDV-TS-0 — Event Type Taxonomy
+### CDV-AVAIL-0 — Event Type Taxonomy
 
-The CalDAV protocol distinguishes four kinds of timeslot representations, each
+The CalDAV protocol distinguishes four kinds of availability representations, each
 of which requires different storage and deletion handling. All four may appear
-in the Timeslot-Calendar.
+in the Availability-Calendar.
 
 | Type | CalDAV mechanism | Identifying signal | Meaning |
 | --- | --- | --- | --- |
@@ -180,14 +180,14 @@ The server must distinguish all four types:
   stored for the series root: any newly added `EXDATE` date-times are newly
   excluded occurrences.
 
-### CDV-TS-1 — PUT (Create / Update)
+### CDV-AVAIL-1 — PUT (Create / Update)
 
-When a CalDAV client sends `PUT /caldav/user/calendars/timeslots/{uid}.ics`:
+When a CalDAV client sends `PUT /caldav/user/calendars/availability/{uid}.ics`:
 
 1. Parse the iCal payload from the request body, extracting: `UID`, `SUMMARY`,
    `DTSTART`, `DTEND`, `RRULE`, `RECURRENCE-ID`, `EXDATE` (zero or more),
    `LAST-MODIFIED`.
-2. Determine the event type (CDV-TS-0) and apply type-specific pre-processing
+2. Determine the event type (CDV-AVAIL-0) and apply type-specific pre-processing
    before persisting:
 
    - **Single event or recurring override** — no pre-processing; proceed to
@@ -201,7 +201,7 @@ When a CalDAV client sends `PUT /caldav/user/calendars/timeslots/{uid}.ics`:
 
    - **Recurring series root — update** (an existing record is found): diff the
      incoming `EXDATE` set against those stored for the series root and handle
-     each of the two possible delta cases before calling `UpsertTimeslot`:
+     each of the two possible delta cases before calling `UpsertAvailability`:
 
      **a) Newly added `EXDATE` values** (present in payload, absent from store):
      For each such date-time, this is a recurrence exclude (type 4):
@@ -212,8 +212,8 @@ When a CalDAV client sends `PUT /caldav/user/calendars/timeslots/{uid}.ics`:
         override's own `[DTSTART, DTEND)` as the conflict-check window instead
         (it may differ from the series duration), then
         **delete that override record** via
-        `DomainStore.DeleteTimeslotOverride(staffID, uid, recurrenceID)`.
-     3. Perform a conflict check over the resolved window (see CDV-TS-3).
+        `DomainStore.DeleteAvailabilityOverride(staffID, uid, recurrenceID)`.
+     3. Perform a conflict check over the resolved window (see CDV-AVAIL-3).
 
      **b) Removed `EXDATE` values** (present in store, absent from payload):
      For each such date-time, the staff member is re-enabling a previously
@@ -223,28 +223,28 @@ When a CalDAV client sends `PUT /caldav/user/calendars/timeslots/{uid}.ics`:
         being restored, not reduced).
      2. If an orphaned override record exists for this `RECURRENCE-ID`
         date-time, **delete it** via
-        `DomainStore.DeleteTimeslotOverride(staffID, uid, recurrenceID)`.
+        `DomainStore.DeleteAvailabilityOverride(staffID, uid, recurrenceID)`.
         The re-enabled series occurrence takes precedence over any orphaned
         override.
 
-3. Call `DomainStore.UpsertTimeslot` with the authenticated Staff user's ID,
+3. Call `DomainStore.UpsertAvailability` with the authenticated Staff user's ID,
    persisting the full updated record including the final `EXDATE` list.
 4. If `DTSTART`, `DTEND`, or `RRULE` changed (not an `EXDATE`-only update),
    perform a broad conflict check via
    `DomainStore.ListActiveBookingsInWindow(staffID, start, end)` over the
-   window covered by the old and/or new event time range (see CDV-TS-3).
+   window covered by the old and/or new event time range (see CDV-AVAIL-3).
    For `EXDATE`-only updates this step is skipped; the per-occurrence checks
    in step 2 are sufficient.
 5. Return `201 Created` (new resource) or `204 No Content` (update) with a
    server-assigned `ETag` value.
 
-### CDV-TS-2 — DELETE
+### CDV-AVAIL-2 — DELETE
 
-When a CalDAV client sends `DELETE /caldav/user/calendars/timeslots/{uid}.ics`
+When a CalDAV client sends `DELETE /caldav/user/calendars/availability/{uid}.ics`
 the server must inspect the stored record identified by the path to determine
-which event type (CDV-TS-0) is being deleted and apply the corresponding
+which event type (CDV-AVAIL-0) is being deleted and apply the corresponding
 behaviour. **Recurrence excludes (type 4) are never delivered as `DELETE`
-requests**; they arrive as `PUT` requests on the series root (see CDV-TS-1).
+requests**; they arrive as `PUT` requests on the series root (see CDV-AVAIL-1).
 `DELETE` handling therefore covers only types 1–3.
 
 #### Case A — Single event
@@ -252,8 +252,8 @@ requests**; they arrive as `PUT` requests on the series root (see CDV-TS-1).
 The resource has no `RRULE` and no `RECURRENCE-ID`.
 
 1. Perform a conflict check for the window `[DTSTART, DTEND)` of the deleted
-   event (see CDV-TS-3).
-2. Call `DomainStore.DeleteTimeslot(staffID, uid)` to remove the record.
+   event (see CDV-AVAIL-3).
+2. Call `DomainStore.DeleteAvailability(staffID, uid)` to remove the record.
 3. Return `204 No Content`.
 
 #### Case B — Recurring series root
@@ -271,12 +271,12 @@ entire repeating series, including all override records that share the same
      `DomainStore.ListActiveBookingsInWindow` for each (or equivalently for the
      combined span, filtering out excluded dates on the domain side).
    - If the `RRULE` is unbounded, use
-     `DomainStore.ListActiveBookingsForTimeslotUID(staffID, uid)` which returns
-     all bookings associated with any timeslot record sharing this `UID`,
+     `DomainStore.ListActiveBookingsForAvailabilityUID(staffID, uid)` which returns
+     all bookings associated with any availability record sharing this `UID`,
      inherently ignoring excluded dates since those dates were never bookable.
 2. Delete all override records for this series by calling
-   `DomainStore.DeleteTimeslotOverrides(staffID, uid)`.
-3. Delete the series root by calling `DomainStore.DeleteTimeslot(staffID, uid)`.
+   `DomainStore.DeleteAvailabilityOverrides(staffID, uid)`.
+3. Delete the series root by calling `DomainStore.DeleteAvailability(staffID, uid)`.
 4. Return `204 No Content`.
 
 #### Case C — Recurring override
@@ -286,10 +286,10 @@ overridden occurrence; the parent series and all other overrides are unaffected.
 The occurrence at the original `RECURRENCE-ID` datetime reverts to being
 governed by the parent series `RRULE` (i.e. it reappears as a normal series
 occurrence, unless the series root carries an `EXDATE` for that date, in which
-case the occurrence remains excluded and no timeslot becomes available).
+case the occurrence remains excluded and no availability window becomes available).
 
 1. Perform a conflict check that covers **both** of the following windows
-   (see CDV-TS-3), because the revert changes the available window:
+   (see CDV-AVAIL-3), because the revert changes the available window:
    - The override's modified window: `[override DTSTART, override DTEND)`.
    - The original series-occurrence window: `[RECURRENCE-ID datetime,
      RECURRENCE-ID datetime + series duration)` — only if this window differs
@@ -297,20 +297,20 @@ case the occurrence remains excluded and no timeslot becomes available).
      `RECURRENCE-ID` date-time is covered by an `EXDATE` on the series root,
      skip this second check because the occurrence will remain excluded after
      the override is removed.
-2. Call `DomainStore.DeleteTimeslotOverride(staffID, uid, recurrenceID)` to
+2. Call `DomainStore.DeleteAvailabilityOverride(staffID, uid, recurrenceID)` to
    remove only this override record.
 3. Return `204 No Content`.
 
 #### Error cases (all three)
 
-- If no timeslot record matching the path is found: return `404 Not Found`.
+- If no availability record matching the path is found: return `404 Not Found`.
 - If an `If-Match` precondition is present and the stored ETag does not match:
   return `412 Precondition Failed` before performing any deletion or conflict
   check.
 
-### CDV-TS-3 — Conflict Notification
+### CDV-AVAIL-3 — Conflict Notification
 
-Whenever a timeslot is created, modified, or deleted, the server must check
+Whenever an availability window is created, modified, or deleted, the server must check
 whether any active booking (state `reserved` or `confirmed`) falls within the
 affected time window by calling
 `DomainStore.ListActiveBookingsInWindow(staffID, start, end)`. If one or more
@@ -321,10 +321,10 @@ Staff users. The email must list each conflicting booking with:
 - service name,
 - customer name, email address, and telephone number.
 
-The timeslot operation itself must not be rolled back due to existing booking
+The availability operation itself must not be rolled back due to existing booking
 conflicts; the conflict notification is informational only.
 
-### CDV-TS-4 — ETag Concurrency
+### CDV-AVAIL-4 — ETag Concurrency
 
 Optimistic concurrency must be supported via the standard HTTP `If-Match`
 (update-only) and `If-None-Match: *` (create-only) precondition headers:
@@ -334,22 +334,22 @@ Optimistic concurrency must be supported via the standard HTTP `If-Match`
 - `If-Match: <etag>` — reject with `412 Precondition Failed` if the stored
   ETag does not match the presented value.
 
-### CDV-TS-5 — Recurring Event Storage
+### CDV-AVAIL-5 — Recurring Event Storage
 
-The domain store must persist all four event types defined in CDV-TS-0:
+The domain store must persist all four event types defined in CDV-AVAIL-0:
 
-- **Single event** — a `Timeslot` record with no `rrule` and no
+- **Single event** — an `Availability` record with no `rrule` and no
   `recurrence_id`.
-- **Recurring series root** — a `Timeslot` record with the raw `RRULE` string
+- **Recurring series root** — an `Availability` record with the raw `RRULE` string
   and no `recurrence_id`. The `RRULE` value is stored verbatim; occurrence
   expansion is performed at query time by the availability logic, not by the
   CalDAV layer.
-- **Recurring override** — a separate `Timeslot` record with the same `UID` as
+- **Recurring override** — a separate `Availability` record with the same `UID` as
   the series root, a non-null `recurrence_id` (equal to the original occurrence
   `DTSTART`), and its own `DTSTART`/`DTEND`. Must not modify the series root
   record.
 - **Recurrence exclude** — represented not as a separate record but as one or
-  more `EXDATE` date-time values stored on the series root `Timeslot` record
+  more `EXDATE` date-time values stored on the series root `Availability` record
   (e.g. in an `exdates` array column or a normalised child table). The
   availability calculator must skip all `EXDATE` date-times when computing
   bookable slots. When a series root is returned to a CalDAV client via
@@ -359,21 +359,20 @@ The domain store must persist all four event types defined in CDV-TS-0:
 
 ---
 
-## 7. Timeslot Read Path (Timeslot-Calendar)
+## 7. Availability Read Path (Availability-Calendar)
 
-When a CalDAV client reads events from the Timeslot-Calendar (via `GET`,
-`REPORT`, or `PROPFIND Depth:1`), the server must synthesise each timeslot
+When a CalDAV client reads events from the Availability-Calendar (via `GET`,
+`REPORT`, or `PROPFIND Depth:1`), the server must synthesise each availability
 event's `SUMMARY` and `TRANSP` properties to reflect current booking occupancy.
 This gives staff users an immediate visual overview of free and booked windows
 directly in Apple Calendar without opening the admin web UI.
 
-### CDV-TS-READ-1 — Occupancy Check
+### CDV-AVAIL-READ-1 — Occupancy Check
 
-Before synthesising the iCal representation of a timeslot event, the CalDAV
-layer must determine whether the timeslot window is currently occupied by
-calling `DomainStore.ListActiveBookingsInWindow(staffID, timeslot.StartAt,
-timeslot.EndAt)`. A timeslot is considered **booked** if the result is
-non-empty; otherwise it is **free**.
+Before synthesising the iCal representation of an availability event, the CalDAV
+layer must determine whether the availability window is currently occupied by
+calling `DomainStore.ListActiveBookingsInWindow(staffID, availability.StartAt,
+availability.EndAt)`. An availability window is considered **booked** if the result is non-empty; otherwise it is **free**.
 
 For **recurring series roots** (events with an `RRULE`) the occupancy check
 cannot be performed per-occurrence because the CalDAV client — not the server
@@ -383,9 +382,9 @@ regardless of whether individual occurrences happen to be booked. Individual
 booked occurrences appear as annotated **recurring overrides** (separate `.ics`
 resources with a `RECURRENCE-ID`), which the server can check individually.
 
-### CDV-TS-READ-2 — Free Timeslot Event Representation
+### CDV-AVAIL-READ-2 — Free Availability Event Representation
 
-A timeslot that is **free** (no active booking, or a recurring series root)
+An availability window that is **free** (no active booking, or a recurring series root)
 must be synthesised as a VEVENT with:
 
 | iCal property | Value |
@@ -393,19 +392,19 @@ must be synthesised as a VEVENT with:
 | `SUMMARY` | `Free` |
 | `TRANSP` | `TRANSPARENT` |
 | `STATUS` | `CONFIRMED` |
-| `DTSTART` | `timeslot.StartAt` (UTC, `Z` suffix) |
-| `DTEND` | `timeslot.EndAt` (UTC, `Z` suffix) |
-| `UID` | `timeslot.CalDAVUID` |
+| `DTSTART` | `availability.StartAt` (UTC, `Z` suffix) |
+| `DTEND` | `availability.EndAt` (UTC, `Z` suffix) |
+| `UID` | `availability.CalDAVUID` |
 | `RRULE` | Verbatim stored RRULE (series roots only; omitted for single events and overrides) |
 | `RECURRENCE-ID` | Stored recurrence ID (overrides only; omitted otherwise) |
 | `EXDATE` | All stored exclusion dates (series roots only; omitted when none) |
 
-A free timeslot is shown as non-blocking time in the staff user's calendar,
+A free availability window is shown as non-blocking time in the staff user's calendar,
 making open availability windows immediately visible.
 
-### CDV-TS-READ-3 — Booked Timeslot Event Representation
+### CDV-AVAIL-READ-3 — Booked Availability Event Representation
 
-A timeslot that is **booked** (one or more active bookings — state `reserved`
+An availability window that is **booked** (one or more active bookings — state `reserved`
 or `confirmed` — overlap its window; applies only to single events and
 recurring overrides, never to series roots) must be synthesised as a VEVENT
 with:
@@ -415,13 +414,13 @@ with:
 | `SUMMARY` | `<contact.name> (<service.name>)` — contact name and service name of the first overlapping active booking, ordered by `start_at` ascending |
 | `TRANSP` | `OPAQUE` |
 | `STATUS` | `CONFIRMED` |
-| `DTSTART` | `timeslot.StartAt` (UTC, `Z` suffix) |
-| `DTEND` | `timeslot.EndAt` (UTC, `Z` suffix) |
-| `UID` | `timeslot.CalDAVUID` |
+| `DTSTART` | `availability.StartAt` (UTC, `Z` suffix) |
+| `DTEND` | `availability.EndAt` (UTC, `Z` suffix) |
+| `UID` | `availability.CalDAVUID` |
 | `RECURRENCE-ID` | Stored recurrence ID (overrides only; omitted otherwise) |
 
 The staff user sees at a glance which slots are occupied and by whom. When
-multiple bookings overlap one timeslot window, only the first (earliest
+multiple bookings overlap one availability window, only the first (earliest
 `start_at`) is used for the summary; the full booking list is visible in the
 Booking-Calendar.
 
@@ -634,7 +633,7 @@ Every generated VCALENDAR must include `CALSCALE:GREGORIAN`.
 
 ### CDV-ICAL-4 — All-Day Events
 
-Timeslot events with `VALUE=DATE` on `DTSTART` must be interpreted and stored
+Availability events with `VALUE=DATE` on `DTSTART` must be interpreted and stored
 as all-day events. When serialised back, an all-day event must use `VALUE=DATE`
 on both `DTSTART` and `DTEND`.
 
@@ -687,7 +686,7 @@ All store errors must be mapped to appropriate HTTP status codes:
 The availability check and the booking creation/update must be executed inside
 a single atomic critical section:
 
-- **PostgreSQL backend**: a `SELECT … FOR UPDATE` on the affected timeslot row
+- **PostgreSQL backend**: a `SELECT … FOR UPDATE` on the affected availability row
   combined with a time-overlap query inside a serializable transaction. A
   conflicting booking causes a transaction rollback and returns `ErrConflict`.
 - **Memory backend**: the write mutex must be held for the full duration of the
@@ -755,9 +754,9 @@ be visible in the iOS event editor.
 | `PROPPATCH` | `/caldav/user/calendars/{id}/` | No-op `207` (CDV-PRIV-4) |
 | `REPORT` | `/caldav/user/calendars/{id}/` | calendar-query + free-busy-query (CDV-BK-2, CDV-FB-1) |
 | `GET` | `/caldav/user/calendars/{id}/{uid}.ics` | Return iCal body of event |
-| `PUT` | `/caldav/user/calendars/timeslots/{uid}.ics` | Upsert timeslot (CDV-TS-1) |
+| `PUT` | `/caldav/user/calendars/availability/{uid}.ics` | Upsert availability (CDV-AVAIL-1) |
 | `PUT` | `/caldav/user/calendars/bookings/{uid}.ics` | `405 Method Not Allowed` (CDV-CAL-4) |
-| `DELETE` | `/caldav/user/calendars/timeslots/{uid}.ics` | Delete timeslot (CDV-TS-2) |
+| `DELETE` | `/caldav/user/calendars/availability/{uid}.ics` | Delete availability (CDV-AVAIL-2) |
 | `DELETE` | `/caldav/user/calendars/bookings/{uid}.ics` | `405 Method Not Allowed` (CDV-CAL-4) |
 | `MKCALENDAR` | Any | `403 Forbidden` (CDV-CAL-2) |
 | `POST` | `/caldav/user/outbox/` | Free/busy scheduling request (CDV-SCHED-4) |

@@ -53,12 +53,12 @@ type AdminNotifyData struct {
 	SentAt    time.Time
 }
 
-// ConflictData is the template data for the admin-conflict email sent when a
-// timeslot change affects active bookings.
+// ConflictData is the template data for the admin-conflict email sent when an
+// availability change affects active bookings.
 type ConflictData struct {
-	Timeslot  *store.Timeslot
-	Conflicts []*store.Booking
-	SentAt    time.Time
+	Availability *store.Availability
+	Conflicts    []*store.Booking
+	SentAt       time.Time
 }
 
 // RetentionNotifyData is the template data for the retention-notify email.

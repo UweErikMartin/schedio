@@ -277,3 +277,39 @@ requirements addition.
       - CDV-TS-READ-3: booked timeslot VEVENT shape
         (`SUMMARY:"<contact.name> (<service.name>)"`, `TRANSP:OPAQUE`).
     - Renumbered old §7–§17 to §8–§18.
+
+---
+
+## "Availability-Calendar" naming and `Availability` domain type — Resolved Inconsistencies (NI33, NI34)
+
+Opened 2026-session. Resolved by adopting `Availability` as the canonical term for
+both the CalDAV calendar display name and the domain record type, superseding the
+earlier `Timeslot` naming throughout.
+
+- **[NI33]** — Every doc and code reference used `"Timeslot-Calendar"` while
+  `doc/components/caldav/requirements.md` CDV-CAL-3 already used
+  `"Availability-Calendar"`.
+  **Resolution:** `"Availability-Calendar"` adopted everywhere.
+  Files updated: `doc/requirements.md`, `doc/architecture.md`,
+  `doc/components/caldav/requirements.md`, `doc/design/ui/x-booking-app.md`,
+  `internal/store/memory.go` (constructor + `UpdateSettings` fallback),
+  `internal/caldav/calendarname_test.go`.
+
+- **[NI34]** — CDV-CAL-3 referred to `"Availability records"` but the Go domain
+  type was `Timeslot`. The NI34 proposed resolution was to keep `Timeslot`;
+  after further review the decision was reversed in favour of a full rename.
+  **Resolution:** Domain record type renamed `Timeslot` → `Availability` throughout.
+  Files updated:
+  - `internal/store/model_domain.go` — `type Availability struct`
+  - `internal/store/store.go` — all 7 `DomainStore` interface methods
+  - `internal/store/memory.go` — struct field, constructor
+  - `internal/store/memory_domain.go` — all method implementations and helpers
+  - `internal/caldav/availability_store.go` — all adapter functions and calls
+  - `internal/caldav/timeslot_readpath_test.go` — test functions and type refs
+  - `internal/store/timeslot_overlap_test.go` — test functions and type refs
+  - `internal/email/templates.go` — `ConflictData` field
+  - `internal/domain/conflict.go` — `Conflict` struct and `FindConflicts` signature
+  - `internal/domain/availability.go` — `ListAvailability` call and comments
+  - `internal/domain/availability_test.go` — stub, helpers, and all test cases
+  - `cmd/schedio/main.go` — seed function and upsert call
+  All tests pass; build is clean.

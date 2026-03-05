@@ -12,7 +12,7 @@ The table below lists all roles that interact with schedio at runtime and summar
 | Role | Auth required | Scope |
 | --- | --- | --- |
 | **Public** | None | Books appointments and manages own bookings via HMAC-signed management links. No login required. |
-| **Staff** | Password (+ optional Apple OAuth) | Reviews and confirms/rejects booking sessions; manages availability timeslots via the CalDAV endpoint; receives data-retention notification e-mails and manages the pending-deletion list; receives billing invoice e-mails. |
+| **Staff** | Password (+ optional Apple OAuth) | Reviews and confirms/rejects booking sessions; manages availability via the CalDAV endpoint; receives data-retention notification e-mails and manages the pending-deletion list; receives billing invoice e-mails. |
 | **Administrator** | Password (+ optional Apple OAuth) | Manages the service catalogue; configures global settings (Terms & Conditions PDF, no-show deadline, currency, appointment location, data retention period, HMAC signing secret). Has no direct access to individual customer records. |
 
 ## Booking of Appointments for a Public User (Customer)
@@ -24,10 +24,10 @@ A customer shall be able to open the booking web page on any web-capable device:
 The booking process follows these steps:
 
 1. **Service selection** — The customer selects a service offering from a list of available services. This selection starts a **booking session**. A booking session is a first-class concept in the data model: it groups all individual bookings created in one interaction and persists across page navigations so the customer can move between steps, add or remove bookings, and return without losing his selection. A session is always tied to exactly one service. If the customer navigates back and selects a different service, the existing session and all its booking lines are discarded and a new session for the newly selected service is started.
-2. **Timeslot selection** — The timeslot selection is presented as a list of booking lines within the active session. Each line represents one independent booking of the selected service. Timeslots in the **Timeslot-Calendar** (see *Timeslot Management*) represent the administrator's general availability and are service-agnostic. When presenting options to the customer, schedio finds availability windows in the Timeslot-Calendar that are long enough to accommodate the duration of the selected service and that are not already occupied by an active booking. The start of such a window is offered as a bookable slot:
+2. **Booking selection** — The booking selection is presented as a list of lines within the active session. Each line represents one independent booking of the selected service. Availabilities in the **Availability-Calendar** (see *Availability Management*) represent the staff's general availability and are service-agnostic. When presenting options to the customer, schedio finds availability windows in the Availability-Calendar that are long enough to accommodate the duration of the selected service and that are not already occupied by an active booking. The start of such a window is offered as a bookable slot:
    - The first line is added automatically and shows the next available start time that fits the service duration as the pre-selected value.
    - The customer can change the date and/or the time of that booking line by interacting with the date and time controls on the same line. Only start times that fall within a sufficiently long free availability window are selectable.
-   - After the timeslot of a line is set, the customer can choose to add another booking of the same service. Doing so appends a new line pre-filled with the next available start time after the previously selected appointment ends.
+   - After the booking is set, the customer can choose to add another booking of the same service. Doing so appends a new line pre-filled with the next available start time after the previously selected appointment ends.
    - Each additional line offers the same controls: change date, change time, and optionally add yet another booking.
    - Lines can be removed individually.
    - Each booking line results in one independent booking record. All records in a session hold a reference to a shared **Contact** entity (see step 3) and share the same service, but are otherwise treated as separate appointments throughout the rest of the flow. The session itself dissolves after the customer submits the final confirmation; from that point the individual booking records — each carrying its own reference to the Contact — stand on their own.
@@ -35,8 +35,8 @@ The booking process follows these steps:
    - Name must not be empty.
    - E-mail address must not be empty and must conform to standard e-mail address syntax.
    - Telephone number must not be empty and must be a valid telephone number in international (`+<CountryCode> …`) or local format.
-   No other automatic validation is performed; the correctness of the selected timeslots is the customer's responsibility.
-4. **Booking overview and confirmation** — The customer is presented with a summary of his selection: the chosen service, all booking lines with their dates and times, and his contact details. He may navigate back to a previous step to change the service, adjust timeslots, or correct his contact data. He must accept the terms and conditions before submitting. There is no separate "correct" flow; all changes are handled by navigating back within the session.
+   No other automatic validation is performed; the correctness of the selected booking is the customer's responsibility.
+4. **Booking overview and confirmation** — The customer is presented with a summary of his selection: the chosen service, all booking lines with their dates and times, and his contact details. He may navigate back to a previous step to change the service, adjust booking times, or correct his contact data. He must accept the terms and conditions before submitting. There is no separate "correct" flow; all changes are handled by navigating back within the session.
 5. **Confirmation e-mail (reserved)** — After confirmation, the customer receives one e-mail for the entire session containing:
    - A list of all bookings made in the session, each showing the service, date, and time.
    - An individual management link per booking, allowing the customer to view or change that specific appointment.
@@ -46,7 +46,7 @@ The booking process follows these steps:
 7. **Booking management via link** — Each management link in the confirmation e-mail is scoped to exactly one booking. Following a link opens a page showing only that specific appointment. The customer can perform the following actions on that page:
    - **Reschedule** — select a new date and time from the available slots for the same service. After saving, schedio sends the customer a **change-summary e-mail** containing a summary of the changed booking and a single `.ics` attachment with all of the customer's current bookings in the session as individual `VEVENT` components with updated `SEQUENCE` values, so the customer's calendar application can update all affected entries in one import.
    - **Cancel** — cancel the booking. If the cancellation is made before the no-show deadline the slot is freed; after the deadline the state transitions to *no-show*. A cancellation e-mail is sent to the customer in both cases.
-   - **Add another timeslot** — start a new independent booking session for the same service and contact data, pre-filled and ready for timeslot selection (see M11 and M24).
+   - **Add another booking** — start a new independent booking session for the same service and contact data, pre-filled and ready for booking selection (see M11 and M24).
 8. **Link protection** — Each management link embeds a signed token directly in the URL (e.g. as a query parameter `?token=…`). The token encodes the booking ID and is signed with an HMAC-SHA256 signature using a server-side secret. The server validates the signature on every request; no session or cookie is required. The resulting token is approximately 80–130 characters, keeping the total URL well under 200 characters — safe for all browsers, e-mail clients, and intermediaries. A customer cannot access or modify another customer's booking because the token is cryptographically bound to a specific booking ID. The HMAC secret is generated automatically at startup if no secret is present in the store; it is persisted in the active store backend (database for PostgreSQL, in-memory for the debug backend). The administrator can download the current secret or upload a replacement secret via the General Settings admin page; uploading a new secret immediately invalidates all previously issued management links.
 
 ## Overview: Administrator Dashboard
@@ -55,7 +55,7 @@ The booking process follows these steps:
 
 After login, the Administrator sees a dashboard with quick access to the configuration and catalogue areas of the application:
 
-- **General Settings** — Upload or replace the Terms and Conditions PDF; configure the no-show deadline, the currency, the appointment location, the data retention period, the management link secret, and the Timeslot-Calendar display name shown to staff users in CalDAV clients. See *General Settings* (§3).
+- **General Settings** — Upload or replace the Terms and Conditions PDF; configure the no-show deadline, the currency, the appointment location, the data retention period, the management link secret, and the Booking-Calendar display name shown to staff users in CalDAV clients. See *General Settings* (§3).
 - **Services** — Add, edit, and delete services. See *Service Administration* (§1).
 
 The Administrator has no direct access to individual customer bookings or the day's schedule.
@@ -81,7 +81,7 @@ After login, the Staff user sees a dashboard focused on daily operations and boo
      - **Summary** (required) — a one-line tagline displayed on the service card in the customer selection list.
      - **Description** (required) — a longer text describing the service in full detail, shown to the customer in the service detail view.
      - **Price** (required) — the cost of the service as a decimal number with currency. A price of zero is permitted (free service).
-     - **Duration** (required) — the length of one appointment for this service, expressed in minutes. The duration determines the length of timeslots generated for this service.
+     - **Duration** (required) — the length of one appointment for this service, expressed in minutes. The duration determines the length of the booking generated for this service.
      - **Daily booking limit** (required) — the maximum number of bookings for this service that may be accepted per calendar day. A value of `0` means no restriction; any number of bookings per day is allowed. If the limit is greater than `0` and the daily count has been reached, this service is no longer selectable by customers for the remainder of that day. Other services whose daily limits have not yet been reached remain fully available for booking.
    - **Edit a service** — The administrator can change the name, summary, description, price, duration, or daily booking limit of an existing service. Changes take effect for new bookings immediately; existing bookings are not retroactively altered.
    - **Delete a service** — The administrator can remove a service from the list. A service that has active (reserved or confirmed) bookings shall not be deleted; the administrator must cancel or complete those bookings first. A deleted service no longer appears in the customer-facing service selection list.
@@ -98,7 +98,7 @@ After login, the Staff user sees a dashboard focused on daily operations and boo
    - **Data Retention Period** — The number of days to retain customer contact and booking records after the customer's last appointment has been completed (i.e., the appointment's end time has passed). The default is **30 days**. Changing this value takes effect at the next scheduled check. See *Data Retention* (§3 in Staff Tasks) for the full lifecycle.
    - **Reminder Lead Time** — The number of days before an appointment at which a reminder e-mail is automatically sent to the customer. Must be a positive integer; default is **1** (i.e. the reminder is sent the day before the appointment). Changing this value takes effect at the next scheduled check; bookings for which a reminder was already sent are not re-notified.
    - **Absender-Name (Sender Name)** — The display name shown in the `From:` header of all customer-facing e-mails (e.g. `Mein Buchungssystem`). Default is `"Schedio Buchungssystem"`. Can also be set at server startup via the `--smtpSenderName` command-line flag or the `smtpSenderName` key in the YAML config file (see `-configFile`); the admin UI value overrides the startup value and the change takes effect immediately for all subsequently sent e-mails without a server restart.
-   - **Default CalDAV Calendar Name** — The display name shown for the **Timeslot-Calendar** in CalDAV-capable clients (e.g. Apple Calendar) when a staff user connects their account. The Booking-Calendar always bears the fixed name `"Booking-Calendar"` and is not affected by this setting. If the field is left empty the Timeslot-Calendar is shown as `"Timeslot-Calendar"`. Changing this value takes effect immediately; no server restart is required.
+   - **Default CalDAV Calendar Names** — The display name shown for the **Booking-Calendar** in CalDAV-capable clients (e.g. Apple Calendar) when a staff user connects their account. The Availability-Calendar always bears the fixed name `"Availability-Calendar"` and is not affected by this setting. If the field is left empty the Booking-Calendar is shown as `"Booking-Calendar"`. Changing this value takes effect immediately; no server restart is required.
 
 3. **User and Role Management**
 
@@ -178,26 +178,26 @@ After login, the Staff user sees a dashboard focused on daily operations and boo
 
    Once all bookings in a session have been either confirmed or rejected, schedio sends the customer one **session result e-mail** summarising the outcome: confirmed bookings, rejected bookings, and the overall session status.
 
-2. **Timeslot Management**
+2. **Availability Management**
 
-   Available timeslots are managed by the Staff user via a dedicated CalDAV calendar named **Timeslot-Calendar**. This calendar is served by the schedio CalDAV endpoint and is visible as a separate calendar in Apple Calendar (or any CalDAV-capable client). The Timeslot-Calendar represents general availability and is **service-agnostic**: events in it do not specify which service can be booked; they only define when the Staff user is available. schedio matches a customer's service selection against these availability windows at booking time.
+   Availability is managed by the Staff user via a dedicated CalDAV calendar named **Availability-Calendar**. This calendar is served by the schedio CalDAV endpoint and is visible as a separate calendar in Apple Calendar (or any CalDAV-capable client). The Availability-Calendar represents general availability and is **service-agnostic**: events in it do not specify which service can be booked; they only define when the Staff user is available. schedio matches a customer's service selection against these availability windows at booking time.
 
-   The Staff user manages availability by adding, modifying, and deleting events in the Timeslot-Calendar directly in Apple Calendar:
+   The Staff user manages availability by adding, modifying, and deleting events in the Availability-Calendar directly in Apple Calendar:
 
-   - **Add a timeslot** — The Staff user creates a calendar event in the Timeslot-Calendar. The event's start time and duration define an availability window during which appointments can be booked. Any service whose duration fits within the window may be booked into it.
-   - **Add recurring timeslots** — The Staff user can create recurring events (daily, weekly, or custom recurrence rules) to define repeating availability without entering each slot individually. Individual occurrences of a recurring event can be modified or deleted independently without affecting the rest of the series.
-   - **Modify a timeslot** — The Staff user can change the start time, duration, or recurrence of an existing availability window. Existing bookings that fall within the original window are not automatically changed or cancelled. However, if the modification causes one or more active bookings to no longer fit within the revised window (conflict), schedio sends a notification e-mail to the Staff user. This e-mail contains a list of all conflicting bookings, each with the booking date and time, the service booked, and the customer's contact data (name, e-mail address, telephone number), so that the Staff user can contact the affected customers directly.
-   - **Delete a timeslot** — The Staff user can delete a single occurrence or an entire recurring series from the Timeslot-Calendar. Existing bookings that fall within the deleted window are not automatically cancelled. If the deletion affects one or more active bookings, schedio sends a notification e-mail to the Staff user listing all affected bookings with their booking date and time, the service booked, and the customer's contact data (name, e-mail address, telephone number).
+   - **Add an availability** — The Staff user creates a calendar event in the Availability-Calendar. The event's start time and duration define an availability window during which appointments can be booked. Any service whose duration fits within the window may be booked into it.
+   - **Add recurring availabilities** — The Staff user can create recurring events (daily, weekly, or custom recurrence rules) to define repeating availability without entering each slot individually. Individual occurrences of a recurring event can be modified or deleted independently without affecting the rest of the series.
+   - **Modify an availability** — The Staff user can change the start time, duration, or recurrence of an existing availability window. Existing bookings that fall within the original window are not automatically changed or cancelled. However, if the modification causes one or more active bookings to no longer fit within the revised window (conflict), schedio sends a notification e-mail to the Staff user. This e-mail contains a list of all conflicting bookings, each with the booking date and time, the service booked, and the customer's contact data (name, e-mail address, telephone number), so that the Staff user can contact the affected customers directly.
+   - **Delete an availability** — The Staff user can delete a single occurrence or an entire recurring series from the Availability-Calendar. Existing bookings that fall within the deleted window are not automatically cancelled. If the deletion affects one or more active bookings, schedio sends a notification e-mail to the Staff user listing all affected bookings with their booking date and time, the service booked, and the customer's contact data (name, e-mail address, telephone number).
 
    schedio determines bookable start times for a given service as follows:
-   - Find all events in the Timeslot-Calendar whose duration is greater than or equal to the selected service's duration.
+   - Find all events in the Availability-Calendar whose duration is greater than or equal to the selected service's duration.
    - Within each such event, identify start-aligned positions that are not already occupied by an active booking of the same or greater duration.
    - Offer those positions as selectable start times to the customer.
 
-   **Timeslot visual state in CalDAV** — When a staff user's CalDAV client reads the Timeslot-Calendar, each timeslot event is presented with a visual state reflecting current booking occupancy:
-   - **Free timeslot** — A timeslot with no active booking (`reserved` or `confirmed`) overlapping its window is shown with the title `"Free"` and marked as transparent (`TRANSP: TRANSPARENT`) so it does not block time in the staff user's calendar view.
-   - **Booked timeslot** — A timeslot that has at least one active booking overlapping its window is shown with the title `"<customer name> (<service name>)"` (contact name and service name of the earliest overlapping booking, ordered by start time) and marked as opaque (`TRANSP: OPAQUE`) so it appears as a busy period.
-   - **Recurring series roots** — A recurring timeslot series (defined with a recurrence rule) is always displayed as free and transparent, because individual occurrence occupancy cannot be expressed on the series root VEVENT. Individual booked occurrences are returned as separate override events carrying the booked title and opaque state.
+   **Availability visual state in CalDAV** — When a staff user's CalDAV client reads the Availability-Calendar, each availability event is presented with a visual state reflecting current booking occupancy:
+   - **Free availability** — An availability with no active booking (`reserved` or `confirmed`) overlapping its window is shown with the title `"Free"` and marked as transparent (`TRANSP: TRANSPARENT`) so it does not block time in the staff user's calendar view.
+   - **Booked availability** — An availability that has at least one active booking overlapping its window is shown with the title `"<customer name> (<service name>)"` (contact name and service name of the earliest overlapping booking, ordered by start time) and marked as opaque (`TRANSP: OPAQUE`) so it appears as a busy period.
+   - **Recurring series roots** — A recurring availability series (defined with a recurrence rule) is always displayed as free and transparent, because individual occurrence occupancy cannot be expressed on the series root VEVENT. Individual booked occurrences are returned as separate override events carrying the booked title and opaque state.
 
 3. **Data Retention**
 
@@ -284,7 +284,7 @@ schedio exposes an OpenAPI 3.x specification for its HTTP API. The specification
 
 The OpenAPI document must cover:
 
-- All customer-facing booking endpoints (service list, timeslot availability, session submission, management link operations).
+- All customer-facing booking endpoints (service list, availability, session submission, management link operations).
 - All admin-facing endpoints (service CRUD, settings, booking confirmation/rejection, dashboard data).
 - Authentication schemes (cookie session for admin endpoints; HMAC-signed token for management-link endpoints).
 
@@ -303,7 +303,7 @@ The primary persistence store is **PostgreSQL**. All domain entities (Services, 
 
 The schema is managed by schedio itself via embedded migration scripts applied at startup. No external migration tool is required.
 
-**Architecture: CalDAV as a facade** — PostgreSQL is the single source of truth for all domain data. The CalDAV endpoint (`/caldav/`) is a **read/write facade** that presents a computed view of the PostgreSQL data: the Timeslot-Calendar and Booking-Calendar are constructed on-the-fly from the database. All mutations — booking creation, confirmation, cancellation, timeslot changes — are performed through the REST API. When the CalDAV endpoint receives a write (e.g. a `PUT` or `DELETE` from Apple Calendar), schedio translates it into the corresponding REST/domain operation on the PostgreSQL store, rather than writing directly to a CalDAV-native store. This ensures PostgreSQL is always authoritative and the REST API (documented in OpenAPI) is the canonical interface for all operations.
+**Architecture: CalDAV as a facade** — PostgreSQL is the single source of truth for all domain data. The CalDAV endpoint (`/caldav/`) is a **read/write facade** that presents a computed view of the PostgreSQL data: the Availability-Calendar and Booking-Calendar are constructed on-the-fly from the database. All mutations — booking creation, confirmation, cancellation, availability changes — are performed through the REST API. When the CalDAV endpoint receives a write (e.g. a `PUT` or `DELETE` from Apple Calendar), schedio translates it into the corresponding REST/domain operation on the PostgreSQL store, rather than writing directly to a CalDAV-native store. This ensures PostgreSQL is always authoritative and the REST API (documented in OpenAPI) is the canonical interface for all operations.
 
 **Store backend selection** — The active store backend is selected at startup via the environment variable `STORE_BACKEND`:
 

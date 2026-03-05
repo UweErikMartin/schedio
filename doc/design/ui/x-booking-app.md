@@ -82,7 +82,7 @@ None. All state is internal.
 1. On mount without `?id=` and `?token=` in the URL, renders `<x-stepper>` and `<x-service-picker>` (step 1).
 2. On mount with both `?id=` and `?token=` present, renders `<x-booking-manager>` and does **not** render the stepper.
 3. When `service-selected` fires, calls `POST /api/v1/sessions`, sets `sessionId`, and transitions to step 2.
-4. When `timeslots-confirmed` fires (from a submit button on step 2), transitions to step 3.
+4. When `availability-confirmed` fires (from a submit button on step 2), transitions to step 3.
 5. When `contact-confirmed` fires, calls `PUT /api/v1/sessions/{id}/contact` and transitions to step 4.
 6. When the submit button on step 4 is clicked (T&C accepted), calls `POST /api/v1/sessions/{id}/submit`; on success transitions to step 5.
 7. When the session-submit call fails (non-2xx), stays on step 4 and renders `<x-error-banner>`.

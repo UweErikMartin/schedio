@@ -21,7 +21,7 @@ type MemoryStore struct {
 	users      map[string]*User             // userID → *User
 	userEmails map[string]string            // email → userID
 	services   map[string]*Service          // serviceID → *Service
-	timeslots  map[string]*Timeslot         // CalDAVUID → *Timeslot
+	availability  map[string]*Availability        // CalDAVUID → *Availability
 	contacts   map[string]*Contact          // contactID → *Contact
 	emailIndex map[string]string            // contact email → contactID
 	sessions   map[string]*BookingSession   // sessionID → *BookingSession
@@ -40,7 +40,7 @@ func NewMemoryStore() *MemoryStore {
 		users:      make(map[string]*User),
 		userEmails: make(map[string]string),
 		services:   make(map[string]*Service),
-		timeslots:  make(map[string]*Timeslot),
+		availability:  make(map[string]*Availability),
 		contacts:   make(map[string]*Contact),
 		emailIndex: make(map[string]string),
 		sessions:   make(map[string]*BookingSession),
@@ -57,7 +57,7 @@ func NewMemoryStore() *MemoryStore {
 	}
 	defaultCal := &Calendar{
 		ID:          "default",
-		Name:        "Timeslot-Calendar",
+		Name:        "Booking-Calendar",
 		Description: "schedio default calendar",
 		Timezone:    "UTC",
 	}

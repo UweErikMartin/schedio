@@ -164,8 +164,8 @@ customer-facing components.
 Step 1 â”€ Service selection
   â”‚  event: service-selected
   â–¼
-Step 2 â”€ Timeslot selection (one or more booking lines)
-  â”‚  event: timeslots-confirmed
+Step 2 â”€ Booking selection (one or more booking lines)
+  â”‚  event: booking-confirmed
   â–¼
 Step 3 â”€ Contact data entry
   â”‚  event: contact-confirmed
@@ -211,7 +211,7 @@ step state, session ID, and communication between child components.
 1. On mount without `?token=`, renders step 1 (`<x-service-picker>`).
 2. On mount with `?token=&id=`, renders `<x-booking-manager>` and does not render the stepper.
 3. When `service-selected` event is received from `<x-service-picker>`, transitions to step 2 and creates a session via `POST /api/v1/sessions`.
-4. When `timeslots-confirmed` is received, transitions to step 3.
+4. When `booking-confirmed` is received, transitions to step 3.
 5. When `contact-confirmed` is received, transitions to step 4.
 6. When `session-submitted` is received, calls `POST /api/v1/sessions/{id}/submit`, on success transitions to step 5.
 7. When `session-submitted` API call returns a non-2xx status, stays on step 4 and renders a global error banner.

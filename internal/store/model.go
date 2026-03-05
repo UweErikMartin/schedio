@@ -1,6 +1,6 @@
 // Package store defines the data model and store interfaces for the schedio
 // application. CalDAV-level types live in this file; domain-level types
-// (User, Service, Timeslot, Contact, BookingSession, Booking, Settings) live
+// (User, Service, Availability, Contact, BookingSession, Booking, Settings) live
 // in model_domain.go.
 package store
 
@@ -42,6 +42,13 @@ type Event struct {
 	// otherwise recurring series (iCal EXDATE property). Empty for non-recurring
 	// events and for override instances. Populated on the series root.
 	ExDates []time.Time
+	// InlineVEVENTs holds additional VEVENT components to be emitted inside the
+	// same VCALENDAR as this event. Used by the CalDAV layer to embed
+	// synthetic recurring-override VEVENTs for booked occurrences of a series
+	// alongside the series-root VEVENT in one .ics resource, so that CalDAV
+	// clients see the override data without needing separate .ics URLs.
+	// This field is never persisted; it is populated at read time.
+	InlineVEVENTs []*Event
 }
 
 // EventStatus mirrors the iCal STATUS property values for VEVENT.

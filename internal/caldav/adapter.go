@@ -370,6 +370,36 @@ func (a *storeAdapter) eventToObject(e *calstore.Event) extcaldav.CalendarObject
 
 	cal.Children = append(cal.Children, vevent)
 
+	// Emit any inline VEVENT overrides (e.g. booked occurrences of a recurring
+	// availability series) as additional VEVENT components in the same VCALENDAR.
+	// iOS Calendar sees them as RECURRENCE-ID overrides of the series root and
+	// renders that specific occurrence with the override's SUMMARY and TRANSP.
+	for _, ov := range e.InlineVEVENTs {
+		ovComp := ical.NewComponent(ical.CompEvent)
+		ovDtstamp := ov.Modified
+		if ovDtstamp.IsZero() {
+			ovDtstamp = dtstamp
+		}
+		ovComp.Props.SetDateTime(ical.PropDateTimeStamp, ovDtstamp)
+		ovComp.Props.SetText(ical.PropUID, ov.ID)
+		ovComp.Props.SetText(ical.PropSummary, ov.Summary)
+		ovComp.Props.SetDateTime(ical.PropDateTimeStart, ov.Start)
+		ovComp.Props.SetDateTime(ical.PropDateTimeEnd, ov.End)
+		ovComp.Props.SetDateTime(ical.PropRecurrenceID, ov.RecurrenceID)
+		if string(ov.Status) != "" {
+			ovComp.Props.SetText(ical.PropStatus, string(ov.Status))
+		}
+		transp := ov.Opacity
+		if transp == "" {
+			transp = calstore.OpacityOpaque
+		}
+		ovComp.Props.SetText(ical.PropTransparency, string(transp))
+		if !ov.Modified.IsZero() {
+			ovComp.Props.SetDateTime(ical.PropLastModified, ov.Modified)
+		}
+		cal.Children = append(cal.Children, ovComp)
+	}
+
 	return extcaldav.CalendarObject{
 		Path:    a.pathForEvent(e.CalendarID, e.ID),
 		ModTime: e.Modified,
