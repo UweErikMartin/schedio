@@ -25,10 +25,10 @@ import (
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-// slotStart / slotEnd define a fixed availability window used in all tests.
+// availSlotStart / availSlotEnd define a fixed availability window used in all tests.
 var (
-	slotStart = time.Date(2026, 3, 10, 9, 0, 0, 0, time.UTC)
-	slotEnd   = time.Date(2026, 3, 10, 10, 0, 0, 0, time.UTC)
+	availSlotStart = time.Date(2026, 3, 10, 9, 0, 0, 0, time.UTC)
+	availSlotEnd   = time.Date(2026, 3, 10, 10, 0, 0, 0, time.UTC)
 )
 
 // newReadPathFixture builds a MemoryStore pre-seeded with:
@@ -60,8 +60,8 @@ func newReadPathFixture(t *testing.T) (*calstore.MemoryStore, string) {
 	if err := st.UpsertAvailability(ctx, &calstore.Availability{
 		UserID:    "staff-1",
 		CalDAVUID: "ts-free-1",
-		StartAt:   slotStart,
-		EndAt:     slotEnd,
+		StartAt:   availSlotStart,
+		EndAt:     availSlotEnd,
 	}); err != nil {
 		t.Fatalf("UpsertAvailability: %v", err)
 	}
@@ -104,8 +104,8 @@ func seedBooking(t *testing.T, st *calstore.MemoryStore) string {
 		UserID:    "staff-1",
 		ServiceID: "svc-1",
 		ContactID: contact.ID,
-		StartAt:   slotStart,
-		EndAt:     slotEnd,
+		StartAt:   availSlotStart,
+		EndAt:     availSlotEnd,
 		State:     calstore.BookingStateReserved,
 	}
 	if err := st.CreateBooking(ctx, booking); err != nil {
@@ -129,8 +129,8 @@ func TestAvailabilityReadPath_FreeEvent(t *testing.T) {
 	ts := &calstore.Availability{
 		UserID:    ownerID,
 		CalDAVUID: "ts-free-1",
-		StartAt:   slotStart,
-		EndAt:     slotEnd,
+		StartAt:   availSlotStart,
+		EndAt:     availSlotEnd,
 	}
 
 	ev, err := combined.availabilityToEventWithOccupancy(ctx, calID, ownerID, ts)
@@ -159,8 +159,8 @@ func TestAvailabilityReadPath_BookedEvent(t *testing.T) {
 	ts := &calstore.Availability{
 		UserID:    ownerID,
 		CalDAVUID: "ts-free-1",
-		StartAt:   slotStart,
-		EndAt:     slotEnd,
+		StartAt:   availSlotStart,
+		EndAt:     availSlotEnd,
 	}
 
 	ev, err := combined.availabilityToEventWithOccupancy(ctx, calID, ownerID, ts)
@@ -191,8 +191,8 @@ func TestAvailabilityReadPath_SeriesRootAlwaysFree(t *testing.T) {
 	ts := &calstore.Availability{
 		UserID:    ownerID,
 		CalDAVUID: "ts-free-1",
-		StartAt:   slotStart,
-		EndAt:     slotEnd,
+		StartAt:   availSlotStart,
+		EndAt:     availSlotEnd,
 		RRule:     "FREQ=WEEKLY;COUNT=4",
 	}
 
@@ -357,8 +357,8 @@ func newRecurringSeriesFixture(t *testing.T) (*calstore.MemoryStore, string) {
 	if err := st.UpsertAvailability(ctx, &calstore.Availability{
 		UserID:    "staff-1",
 		CalDAVUID: "series-uid-1",
-		StartAt:   slotStart,
-		EndAt:     slotEnd,
+		StartAt:   availSlotStart,
+		EndAt:     availSlotEnd,
 		RRule:     "FREQ=WEEKLY;COUNT=4",
 	}); err != nil {
 		t.Fatalf("UpsertAvailability: %v", err)
@@ -396,8 +396,8 @@ func seedBookingForSeries(t *testing.T, st *calstore.MemoryStore) {
 		UserID:    "staff-1",
 		ServiceID: "svc-1",
 		ContactID: contact.ID,
-		StartAt:   slotStart,
-		EndAt:     slotEnd,
+		StartAt:   availSlotStart,
+		EndAt:     availSlotEnd,
 		State:     calstore.BookingStateReserved,
 	}); err != nil {
 		t.Fatalf("CreateBooking: %v", err)
@@ -493,14 +493,14 @@ func TestAvailabilityReadPath_RecurringSeriesBookedOccurrenceGetsOverride(t *tes
 	if override.Opacity != calstore.OpacityOpaque {
 		t.Errorf("override Opacity = %v, want Opaque", override.Opacity)
 	}
-	if !override.RecurrenceID.Equal(slotStart) {
-		t.Errorf("override RecurrenceID = %v, want %v", override.RecurrenceID, slotStart)
+	if !override.RecurrenceID.Equal(availSlotStart) {
+		t.Errorf("override RecurrenceID = %v, want %v", override.RecurrenceID, availSlotStart)
 	}
-	if !override.Start.Equal(slotStart) {
-		t.Errorf("override Start = %v, want %v", override.Start, slotStart)
+	if !override.Start.Equal(availSlotStart) {
+		t.Errorf("override Start = %v, want %v", override.Start, availSlotStart)
 	}
-	if !override.End.Equal(slotEnd) {
-		t.Errorf("override End = %v, want %v", override.End, slotEnd)
+	if !override.End.Equal(availSlotEnd) {
+		t.Errorf("override End = %v, want %v", override.End, availSlotEnd)
 	}
 }
 
