@@ -14,37 +14,37 @@ import (
 // Settings, and is intended for development and testing. Replace it with a
 // persistent implementation in production.
 type MemoryStore struct {
-	mu         sync.RWMutex
-	calendars  map[string]*Calendar
-	events     map[string]map[string]*Event // calendarID → eventID → *Event
-	ctags      map[string]string            // calendarID → opaque ctag
-	users      map[string]*User             // userID → *User
-	userEmails map[string]string            // email → userID
-	services   map[string]*Service          // serviceID → *Service
-	availability  map[string]*Availability        // CalDAVUID → *Availability
-	contacts   map[string]*Contact          // contactID → *Contact
-	emailIndex map[string]string            // contact email → contactID
-	sessions   map[string]*BookingSession   // sessionID → *BookingSession
-	bookings   map[string]*Booking          // bookingID → *Booking
-	settings   Settings                     // single instance
-	hmacSecret []byte
+	mu           sync.RWMutex
+	calendars    map[string]*Calendar
+	events       map[string]map[string]*Event // calendarID → eventID → *Event
+	ctags        map[string]string            // calendarID → opaque ctag
+	users        map[string]*User             // userID → *User
+	userEmails   map[string]string            // email → userID
+	services     map[string]*Service          // serviceID → *Service
+	availability map[string]*Availability     // CalDAVUID → *Availability
+	contacts     map[string]*Contact          // contactID → *Contact
+	emailIndex   map[string]string            // contact email → contactID
+	sessions     map[string]*BookingSession   // sessionID → *BookingSession
+	bookings     map[string]*Booking          // bookingID → *Booking
+	settings     Settings                     // single instance
+	hmacSecret   []byte
 }
 
 // NewMemoryStore creates an initialised MemoryStore with one default calendar
 // and default application settings.
 func NewMemoryStore() *MemoryStore {
 	s := &MemoryStore{
-		calendars:  make(map[string]*Calendar),
-		events:     make(map[string]map[string]*Event),
-		ctags:      make(map[string]string),
-		users:      make(map[string]*User),
-		userEmails: make(map[string]string),
-		services:   make(map[string]*Service),
-		availability:  make(map[string]*Availability),
-		contacts:   make(map[string]*Contact),
-		emailIndex: make(map[string]string),
-		sessions:   make(map[string]*BookingSession),
-		bookings:   make(map[string]*Booking),
+		calendars:    make(map[string]*Calendar),
+		events:       make(map[string]map[string]*Event),
+		ctags:        make(map[string]string),
+		users:        make(map[string]*User),
+		userEmails:   make(map[string]string),
+		services:     make(map[string]*Service),
+		availability: make(map[string]*Availability),
+		contacts:     make(map[string]*Contact),
+		emailIndex:   make(map[string]string),
+		sessions:     make(map[string]*BookingSession),
+		bookings:     make(map[string]*Booking),
 		settings: Settings{
 			NoShowDeadlineHours:  24,
 			RetentionPeriodDays:  30,
