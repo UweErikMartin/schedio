@@ -219,8 +219,15 @@ func availabilityToEvent(calID string, t *calstore.Availability) *calstore.Event
 func (s *combinedCalendarStore) availabilityToEventWithOccupancy(ctx context.Context, calID, ownerID string, ts *calstore.Availability) (*calstore.Event, error) {
 	ev := availabilityToEvent(calID, ts)
 
+	// Fetch the calendar URL once; used in the free branches below (CDV-AVAIL-READ-2).
+	calendarURL := ""
+	if settings, settErr := s.domain.GetSettings(ctx); settErr == nil {
+		calendarURL = settings.CalendarURL
+	}
+
 	// CDV-AVAIL-READ-1: recurring series roots are always free.
 	if ts.RRule != "" && ts.RecurrenceID.IsZero() {
+		ev.URL = calendarURL
 		return ev, nil
 	}
 
@@ -229,10 +236,12 @@ func (s *combinedCalendarStore) availabilityToEventWithOccupancy(ctx context.Con
 	if err != nil {
 		// Degrade gracefully: return the free representation.
 		klog.Warningf("caldav/avail: availabilityToEventWithOccupancy uid=%q occupancy check: %v", ts.CalDAVUID, err)
+		ev.URL = calendarURL
 		return ev, nil
 	}
 	if len(bookings) == 0 {
-		// CDV-AVAIL-READ-2: free.
+		// CDV-AVAIL-READ-2: free — include CalendarURL so staff can open the server directly.
+		ev.URL = calendarURL
 		return ev, nil
 	}
 

@@ -885,16 +885,20 @@ Struct fields (all read from flags or a YAML config file today):
 Host, Port, BindAddress, RootPath, Verbose, Dummy           ← keep / adapt
 SmtpUsername, SmtpPassword, SmtpHost, SmtpPort, AdminMail   ← keep, rename
 MailTemplate                                                  ← REMOVE (unused)
-CalendarURL, CalendarUsername, CalendarPassword              ← REMOVE (old external CalDAV polling model)
+CalendarURL                                                  ← KEEP (seeds Settings.CalendarURL on first startup; see §14.2)
+CalendarUsername, CalendarPassword                           ← REMOVE (old external CalDAV polling model)
 ConfigFile                                                    ← REMOVE (see below)
 ```
 
 **Required changes:**
 
-1. **Remove** `MailTemplate`, `CalendarURL`, `CalendarUsername`, `CalendarPassword`.
+1. **Remove** `MailTemplate`, `CalendarUsername`, `CalendarPassword`.
    These are remnants of an earlier design where schedio polled an external CalDAV
-   server. The target architecture serves CalDAV directly; no external calendar URL
-   is needed.
+   server. The target architecture serves CalDAV directly.
+   **Keep** `CalendarURL` — it is repurposed as the CalDAV server URL shown to clients
+   and is seeded into `Settings.CalendarURL` at first startup (same pattern as `SenderName`).
+   The administrator can subsequently change it via the General Settings admin UI
+   without a server restart.
 2. **Remove** `ConfigFile` / YAML-config-file support. Application configuration is
    provided as environment variables in Kubernetes; reading a YAML file for app
    config conflicts with that model and complicates secret injection.
@@ -948,8 +952,9 @@ AutomatedTasksRunAt string  // AUTOMATED_TASKS_RUN_AT (default: "08:00") — dai
    they remain useful for local development.
 4. Remove flags for deleted fields: `--smtpUsername`, `--smtpPassword`,
    `--smtpHost`, `--smtpPort`, `--adminMail`, `--mailTemplate`,
-   `--calendarUrl`, `--calendarUsername`, `--calendarPassword`, `--dummy`.
+   `--calendarUsername`, `--calendarPassword`, `--dummy`.
    SMTP and auth config must come from env vars only (they carry secrets).
+   Keep `--calendarUrl` (repurposed as a seed value for `Settings.CalendarURL`).
 
 ---
 

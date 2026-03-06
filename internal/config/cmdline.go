@@ -49,8 +49,6 @@ func ParseCommandLineArgs(args []string) Config {
 	flags.StringVar(&params.MailTemplate, "mailTemplate", "", "The email address of the admin")
 	flags.StringVar(&params.ConfigFile, "configFile", "", "read parameters from a yaml config file")
 	flags.StringVar(&params.CalendarURL, "calendarUrl", "", "The URL of the CalDAV calendar")
-	flags.StringVar(&params.CalendarUsername, "calendarUsername", "", "The username for the CalDAV calendar")
-	flags.StringVar(&params.CalendarPassword, "calendarPassword", "", "The password for the CalDAV calendar")
 	flags.IntVar(&params.Verbose, "verbose", 0, "Enable verbose logging. Set to 1 for info, 2 for debug, etc.")
 	flags.BoolVar(&params.Dummy, "dummy", false, "Initialise the CalDAV backend with the built-in dummy store (read-only, pre-populated with sample events).")
 	flags.BoolVar(&params.NoAuth, "noauth", false, "Disable HTTP Basic Auth on all CalDAV endpoints (dev only — use with HTTP when iOS refuses to send credentials over plain HTTP).")

@@ -1324,6 +1324,11 @@ components:
           type: string
           nullable: true
           example: agb.pdf
+        calendar_url:
+          type: string
+          nullable: true
+          description: Hostname or URL of the CalDAV server advertised to CalDAV clients. Seeded from the --calendarUrl startup flag; changes take effect immediately without a server restart.
+          example: caldav.example.com
 
     SettingsInput:
       type: object
@@ -1348,3 +1353,7 @@ components:
           type: string
           nullable: true
           description: Display name for the default staff CalDAV calendar. Empty string resets to "Default Calendar".
+        calendar_url:
+          type: string
+          nullable: true
+          description: Hostname or URL of the CalDAV server. Empty string leaves the current value unchanged.

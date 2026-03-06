@@ -87,6 +87,12 @@ func NewRouter(args *config.Config, calStore calstore.CalendarStore, domainStore
 				klog.Errorf("router: seed SenderName in settings: %v", err)
 			}
 		}
+		if st.CalendarURL == "" && args.CalendarURL != "" {
+			st.CalendarURL = args.CalendarURL
+			if err := domainStore.UpdateSettings(context.Background(), st); err != nil {
+				klog.Errorf("router: seed CalendarURL in settings: %v", err)
+			}
+		}
 		if emailSender != nil && st.SenderName != "" {
 			emailSender.SetFromName(st.SenderName)
 		}

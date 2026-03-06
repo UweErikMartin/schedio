@@ -1047,14 +1047,15 @@ each individual booking.
 
 #### 8.8.1 Component: `<x-settings-form>`
 
-**Responsibility** Edit form for general settings: no-show deadline, reminder
+**Responsibility** Edit form for general settings: CalDAV server URL, no-show deadline, reminder
 lead time, sender name, currency, appointment location, default CalDAV calendar
 name.
 
 **Testable behaviours** — Independently verifiable assertions for unit and e2e tests.
 
 1. Fetches `GET /admin/api/v1/settings` on mount.
-1. Renders fields: Kalenderbezeichnung, Absender-Name, Terminsort, Währung, No-show-Frist (Stunden), Aufbewahrungsfrist (Tage), Erinnerungsfrist (Tage).
+1. Renders fields: Kalender-URL, Kalenderbezeichnung, Absender-Name, Terminsort, Währung, No-show-Frist (Stunden), Aufbewahrungsfrist (Tage), Erinnerungsfrist (Tage).
+1. CalDAV server URL is a free-text input; labelled "Kalender-URL". Hint text states the expected format (e.g. `caldav.example.com`). Seeded from the `--calendarUrl` startup flag; changes take effect immediately without a server restart.
 1. No-show deadline is a positive integer input.
 1. Retention period is a positive integer input (default 30); labelled "Aufbewahrungsfrist (Tage)".
 1. Reminder lead time is a positive integer input (default 1); labelled "Erinnerungsfrist (Tage)".
@@ -1209,6 +1210,7 @@ unless stated otherwise. Auth token endpoints use
 
 ```json
 {
+  "calendar_url": "caldav.example.com",
   "no_show_deadline_hours": 24,
   "retention_period_days": 30,
   "reminder_lead_time_days": 1,

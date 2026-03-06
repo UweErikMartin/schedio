@@ -148,6 +148,7 @@ const STYLES = `
 `;
 
 const FIELDS = [
+  { key: 'calendar_url',          label: 'Kalender-URL',                    type: 'text',   hint: 'Hostname oder URL des CalDAV-Servers (z. B. caldav.example.com)' },
   { key: 'default_calendar_name', label: 'Kalenderbezeichnung',             type: 'text',   hint: 'Anzeigename des Standardkalenders im CalDAV-Client (leer = "Default Calendar")' },
   { key: 'sender_name',           label: 'Absendername',                    type: 'text',   hint: 'Name in ausgehenden E-Mails' },
   { key: 'appointment_location',  label: 'Terminsort',                      type: 'text',   hint: 'Adresse oder Videolink' },

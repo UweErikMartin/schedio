@@ -26,13 +26,16 @@ None.
 
 ## Form fields (representative; exact set comes from API schema)
 
-| Field | Type | Description |
-| --- | --- | --- |
-| Unternehmensname | `text` | Business name shown in e-mail templates |
-| Kontakt-E-Mail | `email` | Reply-to address for outgoing e-mails |
-| Puffer zwischen Terminen (min) | `number` | Minutes of buffer between consecutive bookings |
-| Maximale Buchungen pro Tag | `number` | Cap on daily bookings (0 = unlimited) |
-| Zeitzone | `select` | IANA timezone name |
+| Field | API key | Type | Description |
+| --- | --- | --- | --- |
+| Kalender-URL | `calendar_url` | `text` | Hostname or URL of the CalDAV server (e.g. `caldav.example.com`). Seeded from `--calendarUrl` startup flag; admin UI value overrides immediately. |
+| Kalenderbezeichnung | `default_calendar_name` | `text` | Display name of the default CalDAV calendar in CalDAV clients. Falls back to "Booking-Calendar" when empty. |
+| Absender-Name | `sender_name` | `text` | Display name in the `From:` header of all customer-facing e-mails. |
+| Terminsort | `appointment_location` | `text` | Physical address or video-call URL included as the ICS `LOCATION` field. |
+| Währung | `currency` | `text` | ISO 4217 currency code, e.g. `EUR`. |
+| No-Show-Frist (Stunden) | `no_show_deadline_hours` | `number` | Hours after appointment start after which a cancellation counts as a no-show. |
+| Datenspeicherung (Tage) | `retention_period_days` | `number` | Days to retain contact and booking records after the last appointment. |
+| Erinnerung im Voraus (Tage) | `reminder_lead_time_days` | `number` | Days before an appointment at which the reminder e-mail is sent. |
 
 ---
 

@@ -178,4 +178,5 @@ type Settings struct {
 	TandCFilename        string // filename within DATA_DIR
 	SenderName           string // display name used in the From: header of customer e-mails
 	DefaultCalendarName  string // display name of the Booking-Calendar in CalDAV clients; falls back to "Booking-Calendar" when empty
+	CalendarURL          string // hostname or URL of the CalDAV server advertised to CalDAV clients
 }

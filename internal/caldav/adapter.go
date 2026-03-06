@@ -308,6 +308,11 @@ func (a *storeAdapter) eventToObject(e *calstore.Event) extcaldav.CalendarObject
 	if e.Location != "" {
 		vevent.Props.SetText(ical.PropLocation, e.Location)
 	}
+	if e.URL != "" {
+		urlProp := ical.NewProp(ical.PropURL)
+		urlProp.Value = e.URL
+		vevent.Props.Set(urlProp)
+	}
 	if string(e.Status) != "" {
 		vevent.Props.SetText(ical.PropStatus, string(e.Status))
 	}

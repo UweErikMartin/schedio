@@ -37,6 +37,7 @@ type settingsResp struct {
 	SenderName           string `json:"sender_name"`
 	DefaultCalendarName  string `json:"default_calendar_name,omitempty"`
 	TandCFilename        string `json:"tandc_filename,omitempty"`
+	CalendarURL          string `json:"calendar_url,omitempty"`
 }
 
 // settingsInput is the JSON body accepted by PUT /admin/api/v1/settings.
@@ -49,6 +50,7 @@ type settingsInput struct {
 	AppointmentLocation  *string `json:"appointment_location"`
 	SenderName           *string `json:"sender_name"`
 	DefaultCalendarName  *string `json:"default_calendar_name"`
+	CalendarURL          *string `json:"calendar_url"`
 }
 
 func toResp(s *store.Settings) settingsResp {
@@ -61,6 +63,7 @@ func toResp(s *store.Settings) settingsResp {
 		SenderName:           s.SenderName,
 		DefaultCalendarName:  s.DefaultCalendarName,
 		TandCFilename:        s.TandCFilename,
+		CalendarURL:          s.CalendarURL,
 	}
 }
 
@@ -117,6 +120,9 @@ func (h *SettingsHandler) Put(w http.ResponseWriter, r *http.Request) {
 	}
 	if inp.DefaultCalendarName != nil {
 		cur.DefaultCalendarName = *inp.DefaultCalendarName
+	}
+	if inp.CalendarURL != nil {
+		cur.CalendarURL = *inp.CalendarURL
 	}
 
 	if err := h.st.UpdateSettings(r.Context(), cur); err != nil {

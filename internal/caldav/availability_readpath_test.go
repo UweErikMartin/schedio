@@ -254,6 +254,89 @@ func TestAvailabilityReadPath_HTTP_FreeICS(t *testing.T) {
 	}
 }
 
+// TestAvailabilityReadPath_FreeICS_CalendarURL verifies CDV-AVAIL-READ-2: when
+// settings.CalendarURL is non-empty, a free availability .ics must contain a
+// URL property matching it so staff can open the server directly from the
+// calendar entry.
+func TestAvailabilityReadPath_FreeICS_CalendarURL(t *testing.T) {
+	st, _ := newReadPathFixture(t)
+
+	// Seed CalendarURL via settings.
+	settings, err := st.GetSettings(context.Background())
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.CalendarURL = "caldav.example.com"
+	if err := st.UpdateSettings(context.Background(), settings); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	handler := newTestCaldavHandler(st, "")
+	url := "http://example.com/caldav/user/calendars/avail-staff-1/ts-free-1.ics"
+	req := httptest.NewRequest("GET", url, nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET free .ics: status = %d, want 200\nbody: %s", rec.Code, rec.Body)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "URL:caldav.example.com") {
+		t.Errorf("free .ics missing URL:caldav.example.com (CDV-AVAIL-READ-2)\n%s", body)
+	}
+}
+
+// TestAvailabilityReadPath_FreeICS_NoCalendarURL verifies that when
+// settings.CalendarURL is empty no URL property is emitted in the free .ics.
+func TestAvailabilityReadPath_FreeICS_NoCalendarURL(t *testing.T) {
+	st, _ := newReadPathFixture(t)
+	// CalendarURL defaults to "" — no update needed.
+
+	handler := newTestCaldavHandler(st, "")
+	url := "http://example.com/caldav/user/calendars/avail-staff-1/ts-free-1.ics"
+	req := httptest.NewRequest("GET", url, nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET free .ics: status = %d, want 200\nbody: %s", rec.Code, rec.Body)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "\nURL:") {
+		t.Errorf("free .ics should not contain URL property when CalendarURL is empty\n%s", body)
+	}
+}
+
+// TestAvailabilityReadPath_BookedICS_NoURL verifies that booked availability
+// events do not carry a URL property (the URL is reserved for free slots only).
+func TestAvailabilityReadPath_BookedICS_NoURL(t *testing.T) {
+	st, _ := newReadPathFixture(t)
+	seedBooking(t, st)
+
+	settings, err := st.GetSettings(context.Background())
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.CalendarURL = "caldav.example.com"
+	if err := st.UpdateSettings(context.Background(), settings); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	handler := newTestCaldavHandler(st, "")
+	url := "http://example.com/caldav/user/calendars/avail-staff-1/ts-free-1.ics"
+	req := httptest.NewRequest("GET", url, nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET booked .ics: status = %d, want 200\nbody: %s", rec.Code, rec.Body)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "\nURL:") {
+		t.Errorf("booked .ics should not contain URL property\n%s", body)
+	}
+}
+
 // TestAvailabilityReadPath_HTTP_BookedICS verifies that a GET on a booked availability record
 // .ics URL returns an iCal body with SUMMARY:"Anna Schmidt (Massage)" and
 // TRANSP:OPAQUE.

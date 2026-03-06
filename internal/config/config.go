@@ -87,8 +87,6 @@ type Config struct {
 	AdminMail        string `yaml:"adminMail"`
 	MailTemplate     string `yaml:"mailTemplate"`
 	CalendarURL      string `yaml:"calendarUrl"`
-	CalendarUsername string `yaml:"calendarUsername"`
-	CalendarPassword string `yaml:"calendarPassword"`
 	Verbose          int    `yaml:"verbose"`
 	Dummy            bool   `yaml:"dummy"`
 	// NoAuth disables all HTTP Basic Auth checks on CalDAV endpoints.

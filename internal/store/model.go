@@ -49,6 +49,10 @@ type Event struct {
 	// clients see the override data without needing separate .ics URLs.
 	// This field is never persisted; it is populated at read time.
 	InlineVEVENTs []*Event
+	// URL is the iCal URL property. For free availability events it is set to
+	// settings.CalendarURL so the staff user can open the CalDAV server directly
+	// from the calendar entry. Empty string means the property is omitted.
+	URL string
 }
 
 // EventStatus mirrors the iCal STATUS property values for VEVENT.

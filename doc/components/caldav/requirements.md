@@ -398,6 +398,11 @@ must be synthesised as a VEVENT with:
 | `RRULE` | Verbatim stored RRULE (series roots only; omitted for single events and overrides) |
 | `RECURRENCE-ID` | Stored recurrence ID (overrides only; omitted otherwise) |
 | `EXDATE` | All stored exclusion dates (series roots only; omitted when none) |
+| `URL` | `settings.CalendarURL` — the CalDAV server URL configured in General Settings (see §2 Administrator Tasks in requirements.md). Omitted when `CalendarURL` is empty. |
+
+The `URL` property allows the staff user to open the CalDAV server directly from
+the calendar entry with a single tap/click in Apple Calendar or any CalDAV client
+that renders the `URL` field as a hyperlink.
 
 A free availability window is shown as non-blocking time in the staff user's calendar,
 making open availability windows immediately visible.

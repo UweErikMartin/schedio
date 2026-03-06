@@ -55,7 +55,7 @@ The booking process follows these steps:
 
 After login, the Administrator sees a dashboard with quick access to the configuration and catalogue areas of the application:
 
-- **General Settings** — Upload or replace the Terms and Conditions PDF; configure the no-show deadline, the currency, the appointment location, the data retention period, the management link secret, and the Booking-Calendar display name shown to staff users in CalDAV clients. See *General Settings* (§3).
+   - **General Settings** — Upload or replace the Terms and Conditions PDF; configure the no-show deadline, the currency, the appointment location, the data retention period, the management link secret, the Booking-Calendar display name shown to staff users in CalDAV clients, and the CalDAV server URL. See *General Settings* (§3).
 - **Services** — Add, edit, and delete services. See *Service Administration* (§1).
 
 The Administrator has no direct access to individual customer bookings or the day's schedule.
@@ -99,6 +99,7 @@ After login, the Staff user sees a dashboard focused on daily operations and boo
    - **Reminder Lead Time** — The number of days before an appointment at which a reminder e-mail is automatically sent to the customer. Must be a positive integer; default is **1** (i.e. the reminder is sent the day before the appointment). Changing this value takes effect at the next scheduled check; bookings for which a reminder was already sent are not re-notified.
    - **Absender-Name (Sender Name)** — The display name shown in the `From:` header of all customer-facing e-mails (e.g. `Mein Buchungssystem`). Default is `"Schedio Buchungssystem"`. Can also be set at server startup via the `--smtpSenderName` command-line flag or the `smtpSenderName` key in the YAML config file (see `-configFile`); the admin UI value overrides the startup value and the change takes effect immediately for all subsequently sent e-mails without a server restart.
    - **Default CalDAV Calendar Names** — The display name shown for the **Booking-Calendar** in CalDAV-capable clients (e.g. Apple Calendar) when a staff user connects their account. The Availability-Calendar always bears the fixed name `"Availability-Calendar"` and is not affected by this setting. If the field is left empty the Booking-Calendar is shown as `"Booking-Calendar"`. Changing this value takes effect immediately; no server restart is required.
+   - **CalDAV Server URL** — The hostname or URL of the CalDAV server advertised to CalDAV clients (e.g. `caldav.example.com`). This value is seeded at startup from the `--calendarUrl` command-line flag or the `calendarUrl` key in the YAML config file; the admin UI value overrides the startup value and the change takes effect immediately without a server restart.
 
 3. **User and Role Management**
 
