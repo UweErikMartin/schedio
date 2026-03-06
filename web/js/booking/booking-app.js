@@ -2,6 +2,7 @@
 import '../x-service-picker.js';
 import '../x-date-time-picker.js';
 import '../x-toast.js';
+import '../manage/booking-manager.js';
 
 const BOOKING_APP_STYLES = `
   :host {
@@ -213,12 +214,30 @@ export class BookingApp extends HTMLElement {
 	}
 
 	connectedCallback() {
+		// Management-link mode: ?id=<bookingID>&token=<signedToken>
+		const params = new URLSearchParams(window.location.search);
+		const bookingId = params.get('id');
+		const token     = params.get('token');
+		if (bookingId && token) {
+			this.#renderManagementMode(bookingId, token);
+			return;
+		}
+
 		this.#render();
 		this.#wirePickers();
 		this.#wireContactForm();
 		this.#initialize().catch((err) => {
 			console.error('[x-booking-app] initialization failed', err);
 		});
+	}
+
+	#renderManagementMode(bookingId, token) {
+		const root = this.shadowRoot;
+		root.innerHTML = '';
+		const manager = document.createElement('x-booking-manager');
+		manager.setAttribute('booking-id', bookingId);
+		manager.setAttribute('token', token);
+		root.appendChild(manager);
 	}
 
 	// -------------------------------------------------------------------------
@@ -475,6 +494,7 @@ export class BookingApp extends HTMLElement {
 				last_name:  lastName,
 				email:      emailVal,
 				phone:      phone,
+				timezone:   Intl.DateTimeFormat().resolvedOptions().timeZone,
 			});
 
 			// Show success view — the booking is confirmed regardless of e-mail status.
@@ -517,26 +537,22 @@ export class BookingApp extends HTMLElement {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Builds the start ISO string from the selected date + time.
+	 * Returns the start datetime for the API call.
+	 * selectedTime is now the original UTC RFC-3339 string from the server,
+	 * so it can be submitted directly without any local-time reconstruction.
 	 * @returns {string} RFC 3339 UTC start datetime, e.g. "2026-03-02T08:00:00Z"
 	 */
 	#buildStartISO() {
-		// selectedDate and selectedTime are in the browser's local timezone.
-		// Parse them as local time and convert to a UTC ISO-8601 string.
-		const [year, month, day] = this.#selectedDate.split('-').map(Number);
-		const [hour, minute] = this.#selectedTime.split(':').map(Number);
-		const d = new Date(year, month - 1, day, hour, minute, 0);
-		return d.toISOString().replace(/\.\d+Z$/, 'Z');
+		return this.#selectedTime;
 	}
 
 	/** @returns {string} Human-readable appointment label */
 	#formatDateLabel() {
-		if (!this.#selectedDate || !this.#selectedTime) return 'den gewählten Termin';
+		if (!this.#selectedTime) return 'den gewählten Termin';
 		try {
-			// selectedDate/selectedTime are local values – construct directly as local time.
-			const [year, month, day] = this.#selectedDate.split('-').map(Number);
-			const [hour, minute] = this.#selectedTime.split(':').map(Number);
-			const d = new Date(year, month - 1, day, hour, minute, 0);
+			// selectedTime is the UTC RFC-3339 string from the server; new Date() parses it
+			// correctly and toLocaleString() renders in the browser's local timezone.
+			const d = new Date(this.#selectedTime);
 			const locale = navigator.languages?.[0] ?? navigator.language ?? 'de-DE';
 			const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 			return d.toLocaleString(locale, {
@@ -549,7 +565,7 @@ export class BookingApp extends HTMLElement {
 				timeZone,
 			});
 		} catch {
-			return `${this.#selectedDate} ${this.#selectedTime} Uhr`;
+			return this.#selectedDate || 'den gewählten Termin';
 		}
 	}
 

@@ -167,6 +167,10 @@ type DomainStore interface {
 	// GetContact returns the Contact with the given ID.
 	GetContact(ctx context.Context, id string) (*Contact, error)
 
+	// UpdateContact replaces the stored Contact with the provided value.
+	// It does not update retention-state or billing fields.
+	UpdateContact(ctx context.Context, c *Contact) error
+
 	// UpdateContactLastAppointment advances LastAppointmentEndAt to
 	// appointmentEndAt when it is later than the currently stored value, and
 	// resets BillingGenerated to false and RetentionState to "active" in that

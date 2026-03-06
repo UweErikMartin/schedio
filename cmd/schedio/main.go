@@ -15,6 +15,7 @@ import (
 	"schedio/internal/middleware"
 	"schedio/internal/server"
 	calstore "schedio/internal/store"
+	"schedio/internal/token"
 
 	"k8s.io/klog/v2"
 )
@@ -56,9 +57,15 @@ func main() {
 			klog.Fatalf("error syncing timeslots: %v", err)
 		}
 	}
+
+	signer, err := token.NewSigner(context.Background(), domainStore)
+	if err != nil {
+		klog.Fatalf("error creating token signer: %v", err)
+	}
+
 	httpServer := &http.Server{
 		Addr:              fmt.Sprintf("%s:%d", args.BindAddress, args.Port),
-		Handler:           middleware.LoggingMiddleware(server.NewRouter(&args, caldavStore, domainStore)),
+		Handler:           middleware.LoggingMiddleware(server.NewRouter(&args, caldavStore, domainStore, signer)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,

@@ -15,11 +15,13 @@ import (
 	"schedio/internal/handlers/authhandler"
 	"schedio/internal/handlers/customer"
 	calstore "schedio/internal/store"
+	"schedio/internal/token"
 )
 
 // NewRouter builds the HTTP mux.
 // calStore backs the CalDAV endpoint; domainStore backs auth and domain APIs.
-func NewRouter(args *config.Config, calStore calstore.CalendarStore, domainStore calstore.DomainStore) http.Handler {
+// signer is used to issue and verify customer management-link tokens.
+func NewRouter(args *config.Config, calStore calstore.CalendarStore, domainStore calstore.DomainStore, signer *token.Signer) http.Handler {
 	mux := http.NewServeMux()
 
 	// Auth routes
@@ -103,10 +105,17 @@ func NewRouter(args *config.Config, calStore calstore.CalendarStore, domainStore
 	mux.HandleFunc("GET "+args.RootPath+"/admin/api/v1/settings", settingsH.Get)
 	mux.HandleFunc("PUT "+args.RootPath+"/admin/api/v1/settings", settingsH.Put)
 
-	sessionH := customer.NewSessionHandler(domainStore, emailSender, args.AdminMail)
+	sessionH := customer.NewSessionHandler(domainStore, emailSender, signer, args.AdminMail)
 	mux.HandleFunc("POST "+args.RootPath+"/api/v1/sessions", sessionH.Create)
 	mux.HandleFunc("POST "+args.RootPath+"/api/v1/sessions/{id}/bookings", sessionH.AddBooking)
 	mux.HandleFunc("POST "+args.RootPath+"/api/v1/sessions/{id}/submit", sessionH.Submit)
+
+	// ── Booking management (customer management-link endpoints) ───────────────
+	bookingH := customer.NewBookingHandler(domainStore, signer, emailSender)
+	mux.HandleFunc("GET "+args.RootPath+"/api/v1/bookings/{id}", bookingH.Get)
+	mux.HandleFunc("POST "+args.RootPath+"/api/v1/bookings/{id}/reschedule", bookingH.Reschedule)
+	mux.HandleFunc("DELETE "+args.RootPath+"/api/v1/bookings/{id}", bookingH.Cancel)
+	mux.HandleFunc("POST "+args.RootPath+"/api/v1/bookings/{id}/new-session", bookingH.NewSession)
 
 	mux.Handle(args.RootPath+"/api/docs/", handlers.NewOpenAPIHandler(args.RootPath))
 	mux.Handle(args.RootPath+"/caldav/", caldavHandler)

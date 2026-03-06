@@ -62,9 +62,17 @@ func (svc *Service) GenerateAndSend(ctx context.Context, contact *store.Contact)
 	for _, s := range staff {
 		emails = append(emails, s.Email)
 	}
+	// Convert booking times to the server's local timezone for the admin invoice email.
+	localBookings := make([]*store.Booking, len(bookings))
+	for i, b := range bookings {
+		cp := *b
+		cp.StartAt = b.StartAt.In(time.Local)
+		cp.EndAt = b.EndAt.In(time.Local)
+		localBookings[i] = &cp
+	}
 	if err := svc.email.SendBillingInvoice(ctx, emails, email.BillingInvoiceData{
 		Contact:     contact,
-		Bookings:    bookings,
+		Bookings:    localBookings,
 		InvoicePath: path,
 		SentAt:      time.Now().UTC(),
 	}); err != nil {

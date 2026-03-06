@@ -107,10 +107,12 @@ func runRetentionNotifyPass(ctx context.Context, st store.DomainStore, sender *e
 		// TODO: generate signed deletion-confirmation URL via token.Signer.
 		confirmURL := "/admin/api/v1/retention/confirm?token=TODO"
 
+		// ExpiresAt is shown in the admin email — use the server's local timezone.
+		expiresLocal := expires.In(time.Local)
 		if err := sender.SendRetentionNotify(ctx, staffEmails, email.RetentionNotifyData{
 			Contact:          c,
 			ConfirmDeleteURL: confirmURL,
-			ExpiresAt:        expires,
+			ExpiresAt:        expiresLocal,
 			SentAt:           time.Now().UTC(),
 		}); err != nil {
 			klog.Errorf("retention: notify pass: send email for contact %s: %v", c.ID, err)

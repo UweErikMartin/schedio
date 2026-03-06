@@ -84,6 +84,7 @@ func (s *availStub) GetOrCreateContact(_ context.Context, _ string, c *store.Con
 func (s *availStub) GetContact(_ context.Context, _ string) (*store.Contact, error) {
 	return nil, store.ErrNotFound
 }
+func (s *availStub) UpdateContact(_ context.Context, _ *store.Contact) error { return nil }
 func (s *availStub) UpdateContactLastAppointment(_ context.Context, _ string, _ time.Time) error {
 	return nil
 }

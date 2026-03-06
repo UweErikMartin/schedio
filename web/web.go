@@ -21,6 +21,18 @@ var toastJS []byte
 //go:embed js/booking/booking-app.js
 var bookingAppJS []byte
 
+//go:embed js/manage/booking-manager.js
+var bookingManagerJS []byte
+
+//go:embed js/manage/booking-card.js
+var bookingCardJS []byte
+
+//go:embed js/manage/reschedule-picker.js
+var reschedulePickerJS []byte
+
+//go:embed js/manage/cancel-confirm.js
+var cancelConfirmJS []byte
+
 //go:embed js/admin/admin-app.js
 var adminAppJS []byte
 
@@ -55,7 +67,11 @@ var assetMap = map[string][]byte{
 	"/js/x-date-time-picker.js":    dateTimePickerJS,
 	"/js/x-service-picker.js":      servicePickerJS,
 	"/js/x-toast.js":               toastJS,
-	"/js/booking/booking-app.js":   bookingAppJS,
+	"/js/booking/booking-app.js":       bookingAppJS,
+	"/js/manage/booking-manager.js":    bookingManagerJS,
+	"/js/manage/booking-card.js":       bookingCardJS,
+	"/js/manage/reschedule-picker.js":  reschedulePickerJS,
+	"/js/manage/cancel-confirm.js":     cancelConfirmJS,
 	"/js/admin/admin-app.js":       adminAppJS,
 	"/js/admin/login-form.js":      loginFormJS,
 	"/js/admin/admin-nav.js":       adminNavJS,

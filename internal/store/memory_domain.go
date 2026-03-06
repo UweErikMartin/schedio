@@ -541,6 +541,22 @@ func (s *MemoryStore) GetContact(_ context.Context, id string) (*Contact, error)
 	return &cp, nil
 }
 
+// UpdateContact implements DomainStore. It replaces the stored Contact's
+// mutable fields (name, phone, timezone) without touching retention or billing state.
+func (s *MemoryStore) UpdateContact(_ context.Context, c *Contact) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	existing, ok := s.contacts[c.ID]
+	if !ok {
+		return ErrNotFound
+	}
+	existing.FirstName = c.FirstName
+	existing.LastName = c.LastName
+	existing.Phone = c.Phone
+	existing.Timezone = c.Timezone
+	return nil
+}
+
 // UpdateContactLastAppointment implements DomainStore.
 func (s *MemoryStore) UpdateContactLastAppointment(_ context.Context, contactID string, appointmentEndAt time.Time) error {
 	s.mu.Lock()

@@ -1,6 +1,6 @@
 Hallo {{.Contact.FirstName}} {{.Contact.LastName}},
 
-Ihre Buchung wurde erfolgreich geändert.
+Wir haben Ihre Änderungsanfrage erhalten und werden sie in Kürze bearbeiten.
 
 Neuer Termin: {{.Booking.StartAt.Format "02.01.2006 15:04"}} bis {{.Booking.EndAt.Format "15:04"}} Uhr
 

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"k8s.io/klog/v2"
@@ -17,6 +18,7 @@ import (
 	"schedio/internal/domain"
 	"schedio/internal/email"
 	"schedio/internal/store"
+	"schedio/internal/token"
 )
 
 // ── Request / response shapes ─────────────────────────────────────────────────
@@ -48,6 +50,7 @@ type submitReq struct {
 	LastName  string `json:"last_name"`
 	Email     string `json:"email"`
 	Phone     string `json:"phone"`
+	Timezone  string `json:"timezone"` // IANA tz name from Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
 type submitResp struct {
@@ -69,18 +72,36 @@ type SessionHandler struct {
 	avail      *domain.AvailabilityService
 	bookingSvc *domain.BookingService
 	sender     *email.Sender // nil when SMTP is not configured; email step is skipped
+	signer     *token.Signer
 	adminEmail string
 }
 
 // NewSessionHandler constructs a SessionHandler.
-func NewSessionHandler(st store.DomainStore, sender *email.Sender, adminEmail string) *SessionHandler {
+func NewSessionHandler(st store.DomainStore, sender *email.Sender, signer *token.Signer, adminEmail string) *SessionHandler {
 	return &SessionHandler{
 		st:         st,
 		avail:      domain.NewAvailabilityService(st),
 		bookingSvc: domain.NewBookingService(st),
 		sender:     sender,
+		signer:     signer,
 		adminEmail: adminEmail,
 	}
+}
+
+// manageLink builds the signed customer management URL for the given booking.
+// It uses CalendarURL from settings as the base (stripped of any trailing path
+// so the link always points to the web UI root).
+func (h *SessionHandler) manageLink(ctx context.Context, bookingID string) string {
+	base := ""
+	if st, err := h.st.GetSettings(ctx); err == nil {
+		base = strings.TrimRight(st.CalendarURL, "/")
+		// Strip any CalDAV path suffix – we want the web root, not /caldav/.
+		if idx := strings.Index(base, "/caldav"); idx != -1 {
+			base = base[:idx]
+		}
+	}
+	tok := h.signer.Sign(bookingID)
+	return fmt.Sprintf("%s/?id=%s&token=%s", base, bookingID, tok)
 }
 
 // Create handles POST /api/v1/sessions.
@@ -254,11 +275,19 @@ func (h *SessionHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		LastName:  req.LastName,
 		Email:     req.Email,
 		Phone:     req.Phone,
+		Timezone:  req.Timezone,
 	})
 	if err != nil {
 		klog.Errorf("sessions: GetOrCreateContact: %v", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
+	}
+	// Always update the stored timezone to the latest value supplied by the browser.
+	if req.Timezone != "" && req.Timezone != contact.Timezone {
+		contact.Timezone = req.Timezone
+		if err := h.st.UpdateContact(r.Context(), contact); err != nil {
+			klog.V(2).Infof("sessions: UpdateContact timezone: %v", err)
+		}
 	}
 
 	// Attach the contact to every booking line and advance the retention clock.
@@ -288,16 +317,31 @@ func (h *SessionHandler) Submit(w http.ResponseWriter, r *http.Request) {
 	var emailSent bool
 	var emailErr string
 	if h.sender != nil {
+		// Determine the customer's timezone for display in customer-facing emails,
+		// and use the server's local timezone for the admin-notify email.
+		customerLoc := parseTimezone(contact.Timezone)
+
+		// Build per-booking manage links.
+		manageLinks := make(map[string]string, len(bookings))
+		for _, b := range bookings {
+			manageLinks[b.ID] = h.manageLink(r.Context(), b.ID)
+		}
+		firstLink := ""
+		if len(bookings) > 0 {
+			firstLink = manageLinks[bookings[0].ID]
+		}
 		reservedData := email.ReservedData{
-			Contact:  contact,
-			Session:  session,
-			Bookings: bookings,
-			SentAt:   now,
+			Contact:     contact,
+			Session:     session,
+			Bookings:    inTZ(bookings, customerLoc),
+			ManageLink:  firstLink,
+			ManageLinks: manageLinks,
+			SentAt:      now,
 		}
 		adminData := email.AdminNotifyData{
 			Session:  session,
 			Contact:  contact,
-			Bookings: bookings,
+			Bookings: inTZ(bookings, time.Local),
 			SentAt:   now,
 		}
 		emailCtx, emailCancel := context.WithTimeout(r.Context(), 30*time.Second)

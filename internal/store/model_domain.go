@@ -79,6 +79,7 @@ type Contact struct {
 	LastName             string
 	Email                string // unique; used as customer identity key
 	Phone                string
+	Timezone             string // IANA tz name reported by the browser, e.g. "Europe/Berlin"; empty = UTC
 	CreatedAt            time.Time
 	LastAppointmentEndAt time.Time // zero when no completed appointment exists
 	RetentionState       RetentionState

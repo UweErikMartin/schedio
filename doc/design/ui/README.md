@@ -48,7 +48,7 @@ needs to produce a complete, working Custom Element implementation.
 | [`x-tandc-accept.md`](x-tandc-accept.md) | `<x-tandc-accept>` | T&C acceptance checkbox |
 | [`x-booking-success.md`](x-booking-success.md) | `<x-booking-success>` | Post-submission success view |
 
-### Customer booking management (`web/js/manage/`)
+### Customer Dashboard — booking management (`web/js/manage/`)
 
 | File | Element | Responsibility |
 | --- | --- | --- |

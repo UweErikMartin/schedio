@@ -43,11 +43,65 @@ The booking process follows these steps:
    - A calendar entry (`.ics` attachment) per booking for import into the customer's preferred calendar application.
    - A notice that all bookings are **reserved but not yet reviewed**, and that a session result e-mail summarising the admin's decisions will follow once the administrator has completed the session review.
 6. **Staff session review and confirmation** *(Staff)* — Each booking is stored as a CalDAV event with status *tentative* (`STATUS:TENTATIVE`). The CalDAV event's `URL` property contains a link to the schedio admin session review page. The administrator works with Apple Calendar (or any CalDAV-capable client) connected to the schedio CalDAV endpoint. New bookings appear as tentative events. The admin clicks the URL embedded in an event, which opens the session review page for that session. This page lists all individual bookings of the session; the admin confirms or rejects each booking individually. Once the admin has **completed the review** of the session (all bookings have been either confirmed or rejected), schedio sends the customer one **session result e-mail** summarising the outcome: confirmed bookings, rejected bookings, and the overall session status.
-7. **Booking management via link** — Each management link in the confirmation e-mail is scoped to exactly one booking. Following a link opens a page showing only that specific appointment. The customer can perform the following actions on that page:
+7. **Booking management via link** — Each management link in the confirmation e-mail is scoped to exactly one booking and is protected by an HMAC-signed token embedded in the URL. Clicking such a link opens the **Customer Dashboard** — a dedicated self-service page that displays the details of that specific booking and allows the customer to manage it without logging in. No account or session cookie is required; access is granted solely by the cryptographic token in the link.
+
+   From the Customer Dashboard the customer can perform the following actions:
+
    - **Reschedule** — select a new date and time from the available slots for the same service. After saving, schedio sends the customer a **change-summary e-mail** containing a summary of the changed booking and a single `.ics` attachment with all of the customer's current bookings in the session as individual `VEVENT` components with updated `SEQUENCE` values, so the customer's calendar application can update all affected entries in one import.
    - **Cancel** — cancel the booking. If the cancellation is made before the no-show deadline the slot is freed; after the deadline the state transitions to *no-show*. A cancellation e-mail is sent to the customer in both cases.
    - **Add another booking** — start a new independent booking session for the same service and contact data, pre-filled and ready for booking selection (see M11 and M24).
-8. **Link protection** — Each management link embeds a signed token directly in the URL (e.g. as a query parameter `?token=…`). The token encodes the booking ID and is signed with an HMAC-SHA256 signature using a server-side secret. The server validates the signature on every request; no session or cookie is required. The resulting token is approximately 80–130 characters, keeping the total URL well under 200 characters — safe for all browsers, e-mail clients, and intermediaries. A customer cannot access or modify another customer's booking because the token is cryptographically bound to a specific booking ID. The HMAC secret is generated automatically at startup if no secret is present in the store; it is persisted in the active store backend (database for PostgreSQL, in-memory for the debug backend). The administrator can download the current secret or upload a replacement secret via the General Settings admin page; uploading a new secret immediately invalidates all previously issued management links.
+
+   The full specification of what the Customer Dashboard shows, which actions are available in each booking state, and the exact URL format and token protection mechanism is given in *Overview: Customer Dashboard* below.
+
+## Overview: Customer Dashboard
+
+> **Role:** Public (no login required)
+
+The Customer Dashboard is a self-service page reached exclusively via the per-booking management link included in all customer-facing e-mails (booking confirmation, session result, change-summary, and reminder). No login or account is required; access is controlled solely by the HMAC-signed token in the link URL.
+
+### What the Customer Dashboard shows
+
+The Customer Dashboard displays the complete details of a single booking identified by the management link:
+
+- **Service** — the name of the booked service.
+- **Date and time** — the scheduled start time of the appointment.
+- **Duration** — the length of the appointment.
+- **Location** — the appointment location as configured in General Settings.
+- **Status** — the current booking state (`reserved`, `confirmed`, `cancelled`, or `no-show`).
+- **Contact details** — the customer's own name, e-mail address, and telephone number as stored in the booking.
+
+### Available actions
+
+Actions available to the customer depend on the current booking state:
+
+| Action | Available when state is … |
+| --- | --- |
+| **Reschedule** | `reserved` or `confirmed` |
+| **Cancel** | `reserved` or `confirmed` |
+| **Add another booking** | any state |
+
+Actions that are no longer applicable (e.g. rescheduling an already-cancelled booking) are hidden or disabled in the UI.
+
+- **Reschedule** — The customer selects a new date and time from the available slots for the same service. After saving, schedio sends a **change-summary e-mail** to the customer containing the updated booking details and a single `.ics` attachment with all of the customer's current bookings in that session as individual `VEVENT` components with updated `SEQUENCE` values, so the customer's calendar application can update all affected entries in one import.
+- **Cancel** — The customer cancels the booking. If the cancellation is requested before the no-show deadline the slot is freed and the booking transitions to `cancelled`; if the deadline has already passed the booking transitions to `no-show` instead. A cancellation e-mail is sent to the customer in both cases.
+- **Add another booking** — Starts a new independent booking session for the same service with the customer's contact data pre-filled (see M11 and M24). The customer is taken to the booking flow at the booking-selection step.
+
+### Link format and token protection
+
+Each management link is a URL with two query parameters:
+
+```text
+/?id=<bookingID>&token=<HMAC-SHA256-signature>
+```
+
+- **`id`** — the plain booking ID, used by the frontend to construct display URLs and to identify the resource being accessed.
+- **`token`** — an HMAC-SHA256 signature of the booking ID computed with the server-side HMAC secret.
+
+The server validates the signature on every request; no session or cookie is stored. A customer cannot access or modify another customer's booking because the token is cryptographically bound to the specific `id` value in the URL.
+
+The resulting token is approximately 80–130 characters, keeping the total URL well under 200 characters — safe for all browsers, e-mail clients, and intermediaries.
+
+The HMAC secret is generated automatically at startup if no secret is present in the store and is persisted in the active store backend (database for PostgreSQL, in-memory for the debug backend). The administrator can download the current secret or upload a replacement via the General Settings page; uploading a new secret immediately invalidates all previously issued management links.
 
 ## Overview: Administrator Dashboard
 
@@ -55,7 +109,7 @@ The booking process follows these steps:
 
 After login, the Administrator sees a dashboard with quick access to the configuration and catalogue areas of the application:
 
-   - **General Settings** — Upload or replace the Terms and Conditions PDF; configure the no-show deadline, the currency, the appointment location, the data retention period, the management link secret, the Booking-Calendar display name shown to staff users in CalDAV clients, and the CalDAV server URL. See *General Settings* (§3).
+- **General Settings** — Upload or replace the Terms and Conditions PDF; configure the no-show deadline, the currency, the appointment location, the data retention period, the management link secret, the Booking-Calendar display name shown to staff users in CalDAV clients, and the CalDAV server URL. See *General Settings* (§3).
 - **Services** — Add, edit, and delete services. See *Service Administration* (§1).
 
 The Administrator has no direct access to individual customer bookings or the day's schedule.

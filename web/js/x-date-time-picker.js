@@ -464,12 +464,14 @@ export class xDateTimePicker extends HTMLElement {
 						parsedDate.getMonth() + 1,
 						parsedDate.getDate(),
 					);
-					const localTimeLabel = `${String(parsedDate.getHours()).padStart(2, "0")}:${String(parsedDate.getMinutes()).padStart(2, "0")}`;
 
 					if (!normalizedTimeSlots[localDateKey]) {
 						normalizedTimeSlots[localDateKey] = [];
 					}
-					normalizedTimeSlots[localDateKey].push(localTimeLabel);
+					// Store the original server UTC string. Display labels are derived
+					// on demand via slotDisplayLabel() so no lossy UTC→local→UTC round-trip
+					// is needed when the selected value is submitted to the API.
+					normalizedTimeSlots[localDateKey].push(trimmedSlot);
 					continue;
 				}
 
@@ -790,7 +792,7 @@ export class xDateTimePicker extends HTMLElement {
 			? this.getLocalizedText(this.translationKeys.lblSelectedDatePrefix)
 			: this.getLocalizedText(this.translationKeys.lblEarliestDatePrefix);
 		const displayedTime = this.getDisplayedTimeForSelectedDate();
-		const timeLabel = displayedTime ? `, ${displayedTime}\u00A0${this.getLocalizedText(this.translationKeys.lblTimeSuffix)}` : "";
+		const timeLabel = displayedTime ? `, ${this.slotDisplayLabel(displayedTime)}\u00A0${this.getLocalizedText(this.translationKeys.lblTimeSuffix)}` : "";
 		this.dateLabel.textContent = `${labelPrefix}: ${this.selectedDateFormatter.format(parsed)}${timeLabel}`;
 		this.updateWrapStates();
 	}
@@ -925,7 +927,7 @@ export class xDateTimePicker extends HTMLElement {
 			const optionButton = document.createElement("button");
 			optionButton.type = "button";
 			optionButton.className = "time-option";
-			optionButton.textContent = slot;
+			optionButton.textContent = this.slotDisplayLabel(slot);
 			optionButton.classList.toggle("selected", slot === this.selectedTime);
 			optionButton.addEventListener("click", (event) => {
 				event.preventDefault();
@@ -1002,6 +1004,19 @@ export class xDateTimePicker extends HTMLElement {
 	getAvailabilityForActiveMonth() {
 		const monthKey = this.toMonthKey(this.activeYear, this.activeMonth);
 		return this.availableDatesByMonth.get(monthKey);
+	}
+
+	/**
+	 * Returns the local "HH:MM" display label for a slot value.
+	 * Slot values are the server's UTC RFC-3339 strings; this converts them to
+	 * the browser's local time for presentation only.
+	 * Non-ISO strings (legacy plain "HH:MM") are returned unchanged.
+	 */
+	slotDisplayLabel(slot) {
+		if (typeof slot !== "string" || !slot) return slot || "";
+		const d = new Date(slot);
+		if (!Number.isFinite(d.getTime())) return slot; // fallback: already a plain label
+		return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 	}
 
 	getTimeSlotsForDate(dateKey) {

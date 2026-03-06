@@ -11,11 +11,12 @@ import (
 // ReservedData is the template data for the "reserved" email sent to the
 // customer when a session is successfully submitted.
 type ReservedData struct {
-	Contact    *store.Contact
-	Session    *store.BookingSession
-	Bookings   []*store.Booking
-	ManageLink string // signed management URL
-	SentAt     time.Time
+	Contact     *store.Contact
+	Session     *store.BookingSession
+	Bookings    []*store.Booking
+	ManageLink  string            // signed management URL for the first booking (backward compat)
+	ManageLinks map[string]string // booking ID → individual signed management URL
+	SentAt      time.Time
 }
 
 // SessionResultData is the template data for the "session-result" email sent

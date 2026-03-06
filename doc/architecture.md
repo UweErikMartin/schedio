@@ -1333,3 +1333,83 @@ every step:
 15. **Frontend** — SPA booking flow + admin UI in `web/`.
 16. **OpenAPI spec** — fill out `api/openapi.yaml` to cover all endpoints.
 17. **Integration tests** — end-to-end tests using `MemoryStore` backend.
+
+---
+
+## 18. Customer Dashboard
+
+The **Customer Dashboard** is the self-service page a customer reaches by clicking a management link from any customer-facing e-mail (booking confirmation, session result, change-summary, or reminder). No login, account, or session cookie is required; access is granted entirely by the cryptographic token embedded in the URL.
+
+### 18.1 URL format and SPA activation
+
+Management links use the following URL pattern, served by the same `index.html` as the booking SPA:
+
+```text
+/?id=<bookingID>&token=<HMAC-SHA256-signature>
+```
+
+- **`id`** — the plain booking ID, used by the frontend to construct the `GET /api/v1/bookings/{id}` request URL.
+- **`token`** — HMAC-SHA256 signature of the booking ID computed with the server-side secret (see §11).
+
+When the customer browser loads `/`, the `<x-booking-app>` component inspects `window.location.search`. If both `?id=` and `?token=` are present the component enters **management mode**: the five-step booking flow is replaced by `<x-booking-manager>`, which fetches and displays the single booking identified by `id`.
+
+### 18.2 Component hierarchy
+
+```text
+<x-booking-app>            ← detects management mode from URL; stepper not rendered
+  └── <x-booking-manager>     ← fetches GET /api/v1/bookings/{id}?token=
+        ├── <x-booking-card>         ← displays booking details + action buttons
+        ├── <x-reschedule-picker>    ← inline slot picker for rescheduling
+        └── <x-cancel-confirm>       ← cancellation confirmation dialog
+```
+
+All components live in `web/js/manage/`. Full component specifications are in §6 of `doc/userinterface.md`.
+
+### 18.3 Backend handler
+
+The Customer Dashboard API is served by `BookingHandler` in `internal/handlers/customer/booking.go`. Every endpoint requires a valid `?token=` query parameter (see §18.4).
+
+| Method | Path | Action |
+| --- | --- | --- |
+| `GET` | `/api/v1/bookings/{id}` | Return booking details (service, times, status, contact) |
+| `POST` | `/api/v1/bookings/{id}/reschedule` | Move the booking to a new slot |
+| `DELETE` | `/api/v1/bookings/{id}` | Cancel the booking |
+| `POST` | `/api/v1/bookings/{id}/new-session` | Start a new booking session with contact pre-filled |
+
+### 18.4 Token verification
+
+Every `BookingHandler` method calls `token.Signer.Verify(bookingID, tokenStr)` before performing any domain action:
+
+1. Decodes the base64url token string.
+2. Recomputes `HMAC-SHA256(secret, bookingID)` using the stored secret.
+3. Compares the provided signature against the computed one with `hmac.Equal` (constant-time comparison).
+4. Returns `ErrForbidden` on any mismatch; the handler responds `403 Forbidden`.
+
+No session cookie is read or written on the customer-dashboard path.
+
+### 18.5 State-dependent available actions
+
+The frontend hides or disables actions that are not applicable to the current booking state. The backend enforces the same restrictions independently.
+
+| Booking state | Reschedule | Cancel | Add another booking |
+| --- | --- | --- | --- |
+| `reserved` | yes | yes | yes |
+| `confirmed` | yes | yes | yes |
+| `cancelled` | — | — | yes |
+| `no-show` | — | — | yes |
+
+Attempting to reschedule or cancel a booking in `cancelled` or `no-show` state returns `409 Conflict`.
+
+### 18.6 What the Customer Dashboard displays
+
+The `GET /api/v1/bookings/{id}` response provides all fields rendered by `<x-booking-card>`:
+
+| Field | Source |
+| --- | --- |
+| Service name | `service.name` |
+| Start / end time | `booking.start_at` / `booking.end_at` |
+| Location | `settings.appointment_location` |
+| Status | `booking.state` |
+| Customer name | `contact.first_name + " " + contact.last_name` |
+| Customer e-mail | `contact.email` |
+| Customer phone | `contact.phone` |

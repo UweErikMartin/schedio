@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -8,6 +9,7 @@ import (
 	"net/http/httptest"
 	"schedio/internal/config"
 	calstore "schedio/internal/store"
+	"schedio/internal/token"
 	"strings"
 	"testing"
 )
@@ -23,7 +25,11 @@ func randomRootPath() string {
 
 func newTestRouter(args config.Config) http.Handler {
 	st := calstore.NewMemoryStore()
-	return NewRouter(&args, st, st)
+	signer, err := token.NewSigner(context.Background(), st)
+	if err != nil {
+		panic("newTestRouter: " + err.Error())
+	}
+	return NewRouter(&args, st, st, signer)
 }
 
 func TestRouter_ServesOpenAPISpec(t *testing.T) {

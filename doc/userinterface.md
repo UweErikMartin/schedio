@@ -532,11 +532,11 @@ session result e-mail once the administrator completes the review.
 
 ---
 
-## 6. Customer Booking Management View
+## 6. Customer Dashboard (Booking Management View)
 
-Activated when the page URL contains both `?id=<bookingID>` and `?token=<signedToken>`
-query parameters. The `<x-booking-app>` renders `<x-booking-manager>` instead of the
-step flow. See §4 for the management link URL design rationale.
+The **Customer Dashboard** is the self-service view reached by clicking a management link included in any customer-facing e-mail (booking confirmation, session result, change-summary, or reminder). It is activated when the page URL contains both `?id=<bookingID>` and `?token=<signedToken>` query parameters. The `<x-booking-app>` responds by entering **management mode**: the five-step booking flow is replaced by `<x-booking-manager>`, which fetches and renders the single booking identified by `id`. No login or cookie is required; the HMAC-signed token in the URL is the sole credential.
+
+See §4 for the URL design rationale and token format. For the end-to-end architectural view (request flow, token verification, available endpoints), see §18 of `doc/architecture.md`.
 
 ### 6.1 Component: `<x-booking-manager>`
 

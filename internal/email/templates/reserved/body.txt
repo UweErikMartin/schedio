@@ -4,9 +4,8 @@ vielen Dank für Ihre Buchungsanfrage. Wir haben Ihre Anfrage empfangen und werd
 
 Ihre Terminwünsche:
 {{range .Bookings}}  - {{.StartAt.Format "02.01.2006 15:04"}} bis {{.EndAt.Format "15:04"}} Uhr
+    Link zur Verwaltung: {{index $.ManageLinks .ID}}
 {{end}}
-Sie können Ihre Buchung über folgenden Link verwalten:
-{{.ManageLink}}
 
 Mit freundlichen Grüßen
 Ihr Team
