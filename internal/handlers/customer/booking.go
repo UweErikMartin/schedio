@@ -50,7 +50,7 @@ type contactResp struct {
 }
 
 type rescheduleReq struct {
-	NewSlot  string `json:"new_slot"`  // RFC 3339 UTC
+	NewSlot  string `json:"new_slot"` // RFC 3339 UTC
 	Timezone string `json:"timezone"` // IANA tz name from Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
