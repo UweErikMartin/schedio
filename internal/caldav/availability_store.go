@@ -198,6 +198,19 @@ func availabilityToEvent(calID string, t *calstore.Availability) *calstore.Event
 	}
 }
 
+// urlMixedETag derives a new ETag by hashing base with calendarURL so that a
+// change in the CalendarURL setting forces CalDAV clients to re-fetch the event
+// body and pick up the updated URL property. When calendarURL is empty the
+// original tag is returned unchanged (preserving ETags for pre-existing events).
+func urlMixedETag(base, calendarURL string) string {
+	if calendarURL == "" {
+		return base
+	}
+	h := sha256.New()
+	fmt.Fprintf(h, "avail-etag:%s:url:%s\n", base, calendarURL)
+	return fmt.Sprintf("%x", h.Sum(nil))[:16]
+}
+
 // availabilityToEventWithOccupancy synthesises a CalDAV Event from an Availability record and
 // enriches its SUMMARY and TRANSP with booking occupancy information
 // (CDV-AVAIL-READ-1 / CDV-AVAIL-READ-2 / CDV-AVAIL-READ-3).
@@ -228,6 +241,7 @@ func (s *combinedCalendarStore) availabilityToEventWithOccupancy(ctx context.Con
 	// CDV-AVAIL-READ-1: recurring series roots are always free.
 	if ts.RRule != "" && ts.RecurrenceID.IsZero() {
 		ev.URL = calendarURL
+		ev.ETag = urlMixedETag(ev.ETag, calendarURL)
 		return ev, nil
 	}
 
@@ -237,11 +251,13 @@ func (s *combinedCalendarStore) availabilityToEventWithOccupancy(ctx context.Con
 		// Degrade gracefully: return the free representation.
 		klog.Warningf("caldav/avail: availabilityToEventWithOccupancy uid=%q occupancy check: %v", ts.CalDAVUID, err)
 		ev.URL = calendarURL
+		ev.ETag = urlMixedETag(ev.ETag, calendarURL)
 		return ev, nil
 	}
 	if len(bookings) == 0 {
 		// CDV-AVAIL-READ-2: free — include CalendarURL so staff can open the server directly.
 		ev.URL = calendarURL
+		ev.ETag = urlMixedETag(ev.ETag, calendarURL)
 		return ev, nil
 	}
 
