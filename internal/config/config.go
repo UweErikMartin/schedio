@@ -75,20 +75,20 @@ type availabilityFile struct {
 // Config holds all runtime configuration derived from flags, environment
 // variables, and optional config files.
 type Config struct {
-	Host             string `yaml:"host"`
-	Port             int    `yaml:"port"`
-	BindAddress      string `yaml:"bindAddress"`
-	RootPath         string `yaml:"rootPath"`
-	SmtpUsername     string `yaml:"smtpUsername"`
-	SmtpPassword     string `yaml:"smtpPassword"`
-	SmtpHost         string `yaml:"smtpHost"`
-	SmtpPort         int    `yaml:"smtpPort"`
-	SenderName       string `yaml:"smtpSenderName"`
-	AdminMail        string `yaml:"adminMail"`
-	MailTemplate     string `yaml:"mailTemplate"`
-	CalendarURL      string `yaml:"calendarUrl"`
-	Verbose          int    `yaml:"verbose"`
-	Dummy            bool   `yaml:"dummy"`
+	Host         string `yaml:"host"`
+	Port         int    `yaml:"port"`
+	BindAddress  string `yaml:"bindAddress"`
+	RootPath     string `yaml:"rootPath"`
+	SmtpUsername string `yaml:"smtpUsername"`
+	SmtpPassword string `yaml:"smtpPassword"`
+	SmtpHost     string `yaml:"smtpHost"`
+	SmtpPort     int    `yaml:"smtpPort"`
+	SenderName   string `yaml:"smtpSenderName"`
+	AdminMail    string `yaml:"adminMail"`
+	MailTemplate string `yaml:"mailTemplate"`
+	CalendarURL  string `yaml:"calendarUrl"`
+	Verbose      int    `yaml:"verbose"`
+	Dummy        bool   `yaml:"dummy"`
 	// NoAuth disables all HTTP Basic Auth checks on CalDAV endpoints.
 	// Intended for local development only when the client (e.g. iOS) refuses
 	// to send credentials over plain HTTP.  Never enable in production.
