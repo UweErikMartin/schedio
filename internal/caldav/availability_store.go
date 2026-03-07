@@ -498,6 +498,16 @@ func eventToAvailability(ownerUserID string, e *calstore.Event) *calstore.Availa
 
 // ── calstore.CalendarStore implementation ─────────────────────────────────────
 
+// applyBookingCalendarName overrides cal.Name with Settings.DefaultCalendarName
+// when that setting is non-empty. The store's own name is kept as the fallback
+// so that stores (e.g. DummyStore) that do not set DefaultCalendarName preserve
+// their original calendar names.
+func (s *combinedCalendarStore) applyBookingCalendarName(ctx context.Context, c *calstore.Calendar) {
+	if settings, err := s.domain.GetSettings(ctx); err == nil && settings.DefaultCalendarName != "" {
+		c.Name = settings.DefaultCalendarName
+	}
+}
+
 // GetCalendar implements CalendarStore. Availability calendars are resolved
 // from the DomainStore; all other IDs are delegated to the base CalendarStore.
 func (s *combinedCalendarStore) GetCalendar(ctx context.Context, id string) (*calstore.Calendar, error) {
@@ -511,7 +521,12 @@ func (s *combinedCalendarStore) GetCalendar(ctx context.Context, id string) (*ca
 		}
 		return availCalendar(su), nil
 	}
-	return s.base.GetCalendar(ctx, id)
+	c, err := s.base.GetCalendar(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	s.applyBookingCalendarName(ctx, c)
+	return c, nil
 }
 
 // ListCalendars implements CalendarStore. The returned list is the union of
@@ -521,6 +536,11 @@ func (s *combinedCalendarStore) ListCalendars(ctx context.Context) ([]*calstore.
 	base, err := s.base.ListCalendars(ctx)
 	if err != nil {
 		return nil, err
+	}
+	// Apply the configured booking-calendar display name to all base calendars
+	// when Settings.DefaultCalendarName is set.
+	for _, c := range base {
+		s.applyBookingCalendarName(ctx, c)
 	}
 	avail, err := s.viewableAvailCalendars(ctx)
 	if err != nil {

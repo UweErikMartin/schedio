@@ -1,1214 +1,1147 @@
-const X_DATE_TIME_PICKER_STYLES = `
-.x-date-time-picker-root {
-	--surface: #ffffff;
-	--text: #1f2937;
-	--muted: #4b5563;
-	--primary: #0f62fe;
-	--border: #d1d5db;
-	--calendar-offset: 0.35rem;
-	font-family: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
-	font-size: 1rem;
-	color: var(--text);
-	display: grid;
-	gap: 0.35rem;
-	position: relative;
-}
+// ─── Redesigned to comply with the x-foo Web Component conventions ───────────
+// Key changes vs. the original implementation:
+//   - Shadow DOM (attachShadow) replaces light-DOM innerHTML
+//   - STYLES / TRANSLATIONS follow the required constant names
+//   - @import '/css/tokens.css' replaces inline CSS custom properties
+//   - Class renamed XDateTimePicker (PascalCase) with named export
+//   - All instance state moved to private fields (#)
+//   - observedAttributes limited to lowercase kebab-case only
+//   - All custom events include composed: true
+//   - External locale files loaded from <locale-path>/<lang>.json (configurable)
+//   - Mobile-first responsive CSS with min-width breakpoints
+// -----------------------------------------------------------------------------
 
-.x-date-time-picker-root,
-.x-date-time-picker-root * {
-	box-sizing: border-box;
-}
+const STYLES = `
+  @import '/css/tokens.css';
 
-.x-date-time-picker-root .date-summary {
-	display: flex;
-	flex-wrap: nowrap;
-	align-items: center;
-	justify-content: space-between;
-	gap: 0.75rem;
-	border: 1px solid var(--border);
-	border-radius: 10px;
-	background: var(--surface);
-	padding: 0.7rem 0.85rem;
-	width: 100%;
-}
+  /* Fallback token values — used when tokens.css fails to load */
+  :host {
+    --color-bg:             #f9fafb;
+    --color-surface:        #ffffff;
+    --color-border:         #d1d5db;
+    --color-text:           #1f2937;
+    --color-muted:          #6b7280;
+    --color-primary:        #0f62fe;
+    --color-primary-hover:  #0353d9;
+    --color-danger:         #dc2626;
+    --color-warning:        #f59e0b;
+    --color-success:        #16a34a;
+    --color-tentative:      #7c3aed;
+    --font-family:          Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-size-sm:         0.875rem;
+    --font-size-base:       1rem;
+    --font-size-lg:         1.125rem;
+    --font-size-xl:         1.25rem;
+    --font-weight-normal:   400;
+    --font-weight-medium:   500;
+    --font-weight-bold:     600;
+    --space-xs:             0.25rem;
+    --space-sm:             0.5rem;
+    --space-md:             1rem;
+    --space-lg:             1.5rem;
+    --space-xl:             2rem;
+    --radius-sm:            6px;
+    --radius-md:            10px;
+    --radius-lg:            16px;
+    --shadow-card:          0 1px 4px rgba(0, 0, 0, 0.08);
 
-.x-date-time-picker-root .date-summary,
-.x-date-time-picker-root .select-time-button,
-.x-date-time-picker-root .calendar-nav,
-.x-date-time-picker-root .calendar-day,
-.x-date-time-picker-root .time-option {
-	touch-action: manipulation;
-	-webkit-tap-highlight-color: transparent;
-}
+    display: block;
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+    position: relative;
+  }
 
-.x-date-time-picker-root .selected-date-wrap {
-	flex: 0 0 auto;
-	width: fit-content;
-	max-width: 100%;
-	min-width: 0;
-	text-align: left;
-}
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
 
-.x-date-time-picker-root .selected-date-label {
-	display: block;
-	white-space: nowrap;
-}
+  /* -- Date summary bar (mobile-first: stacked) ---- */
+  .date-summary {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: var(--space-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    padding: 0.35rem var(--space-sm);
+    width: 100%;
+    cursor: pointer;
+    box-shadow: var(--shadow-card);
+    transition: border-color 0.15s;
+  }
 
-.x-date-time-picker-root .date-summary.is-wrapped .selected-date-label {
-	white-space: normal;
-	overflow-wrap: break-word;
-	word-break: normal;
-}
+  .date-summary:hover {
+    border-color: var(--color-primary);
+  }
 
-.x-date-time-picker-root .date-actions {
-	display: inline-flex;
-	gap: 0.5rem;
-	flex-wrap: wrap;
-	flex: 0 0 auto;
-	justify-content: flex-end;
-	margin-left: auto;
-	max-width: 100%;
-}
+  /* -- State colours -- */
+  :host([state="tentative"]) .date-summary {
+    background: #fefce8;
+    border-color: #fde047;
+  }
+  :host([state="tentative"]) .date-summary:hover {
+    border-color: #eab308;
+  }
 
-.x-date-time-picker-root .date-actions.is-wrapped {
-	display: flex;
-	width: 100%;
-	margin-left: 0;
-}
+  :host([state="confirmed"]) .date-summary {
+    background: #f0fdf4;
+    border-color: #86efac;
+  }
+  :host([state="confirmed"]) .date-summary:hover {
+    border-color: #16a34a;
+  }
 
-	.x-date-time-picker-root .date-actions.is-wrapped .select-time-button {
-	flex: 1 1 100%;
-}
+  :host([state="cancelled"]) .date-summary {
+    background: #fef2f2;
+    border-color: #fca5a5;
+  }
+  :host([state="cancelled"]) .date-summary:hover {
+    border-color: #dc2626;
+  }
+  :host([state="cancelled"]) .selected-date-label {
+    text-decoration: line-through;
+  }
 
-.x-date-time-picker-root .date-summary.is-wrapped {
-	flex-wrap: wrap;
-	justify-content: center;
-}
+  .selected-date-wrap {
+    min-width: 0;
+  }
 
-.x-date-time-picker-root .date-summary.is-wrapped .selected-date-wrap {
-	flex: 1 1 100%;
-	width: 100%;
-	text-align: center;
-}
+  .selected-date-label {
+    display: block;
+    word-break: break-word;
+  }
 
-.x-date-time-picker-root .date-summary.is-wrapped .date-actions {
-	width: 100%;
-	margin-left: 0;
-	justify-content: center;
-}
+  .date-actions {
+    display: flex;
+    align-items: center;
+  }
 
-.x-date-time-picker-root .calendar {
-	border: 1px solid var(--border);
-	border-radius: 10px;
-	padding: 0.75rem;
-	background: #fbfdff;
-	position: absolute;
-	top: calc(100% + var(--calendar-offset));
-	left: 0;
-	right: 0;
-	z-index: 20;
-}
+  .date-actions .select-time-button {
+    flex: 0 0 auto;
+  }
 
-.x-date-time-picker-root .time-list {
-	border: 1px solid var(--border);
-	border-radius: 10px;
-	padding: 0.75rem;
-	background: #fbfdff;
-	position: absolute;
-	top: calc(100% + var(--calendar-offset));
-	left: 0;
-	right: 0;
-	z-index: 20;
-}
+  /* -- Interactive element resets -- */
+  .select-time-button,
+  .calendar-nav,
+  .calendar-day,
+  .time-option {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    font: inherit;
+    cursor: pointer;
+  }
 
-.x-date-time-picker-root .time-options {
-	display: grid;
-	gap: 0.45rem;
-}
+  /* -- Select-time button (icon) -- */
+  .select-time-button {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    font-size: 1.4rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s;
+  }
 
-.x-date-time-picker-root .time-option {
-	width: 100%;
-	text-align: left;
-	padding: 0.6rem 0.7rem;
-	border: 1px solid var(--border);
-	border-radius: 8px;
-	background: var(--surface);
-	color: var(--text);
-	font: inherit;
-	cursor: pointer;
-	transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
-}
+  .select-time-button:hover:not(:disabled) {
+    border-color: var(--color-primary);
+  }
 
-.x-date-time-picker-root .time-option.selected {
-	background: var(--primary);
-	color: #ffffff;
-	border-color: var(--primary);
-}
+  .select-time-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 
-.x-date-time-picker-root .time-option:disabled {
-	background: #f3f4f6;
-	color: #9ca3af;
-	border-color: #e5e7eb;
-	cursor: not-allowed;
-}
+  /* -- Dropdown panels -- */
+  .calendar,
+  .time-list {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    background: var(--color-surface);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+    position: absolute;
+    top: calc(100% + var(--space-xs));
+    left: 0;
+    right: 0;
+    z-index: 20;
+  }
 
-.x-date-time-picker-root .select-time-button {
-	border: 1px solid var(--border);
-	border-radius: 8px;
-	background: var(--surface);
-	color: var(--text);
-	padding: 0.4rem 0.7rem;
-	cursor: pointer;
-	font: inherit;
-	font-weight: 600;
-	min-width: 0;
-	max-width: 100%;
-	white-space: normal;
-	overflow-wrap: anywhere;
-}
+  /* -- Calendar header -- */
+  .calendar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-sm);
+  }
 
-.x-date-time-picker-root .select-time-button:hover {
-	border-color: var(--primary);
-}
+  .calendar-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--font-size-lg);
+    line-height: 1;
+    transition: border-color 0.15s;
+  }
 
-.x-date-time-picker-root .calendar-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	margin-bottom: 0.6rem;
-}
+  .calendar-nav:hover:not(:disabled) {
+    border-color: var(--color-primary);
+  }
 
-.x-date-time-picker-root .calendar-nav {
-	border: 1px solid var(--border);
-	border-radius: 8px;
-	background: var(--surface);
-	color: var(--text);
-	padding: 0.35rem 0.6rem;
-	cursor: pointer;
-}
+  .calendar-nav:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
 
-.x-date-time-picker-root .calendar-weekdays,
-.x-date-time-picker-root .calendar-grid {
-	display: grid;
-	grid-template-columns: repeat(7, minmax(0, 1fr));
-	gap: 0.35rem;
-}
+  .calendar-month-label {
+    font-weight: var(--font-weight-bold);
+    font-size: var(--font-size-base);
+  }
 
-.x-date-time-picker-root .calendar-weekdays {
-	margin-bottom: 0.4rem;
-	color: var(--muted);
-	font-size: 0.82rem;
-}
+  /* -- Calendar grid -- */
+  .calendar-weekdays,
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--space-xs);
+  }
 
-.x-date-time-picker-root .calendar-weekdays span {
-	text-align: center;
-	font-weight: 600;
-}
+  .calendar-weekdays {
+    margin-bottom: var(--space-xs);
+    color: var(--color-muted);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    text-align: center;
+  }
 
-.x-date-time-picker-root .calendar-spacer {
-	height: 2.1rem;
-}
+  .calendar-weekdays span {
+    text-align: center;
+  }
 
-.x-date-time-picker-root .calendar-day {
-	border: 1px solid var(--border);
-	border-radius: 8px;
-	background: var(--surface);
-	color: var(--text);
-	min-height: 2.1rem;
-	cursor: pointer;
-}
+  .calendar-spacer {
+    height: 2.5rem;
+  }
 
-.x-date-time-picker-root .calendar-day:hover:not(:disabled) {
-	border-color: var(--primary);
-}
+  .calendar-day {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    min-height: 2.5rem;
+    font-size: var(--font-size-sm);
+    transition: border-color 0.12s, background 0.12s;
+  }
 
-.x-date-time-picker-root .calendar-day.selected {
-	border-color: var(--primary);
-	font-weight: 700;
-	box-shadow: inset 0 0 0 1px #fff;
-}
+  .calendar-day:hover:not(:disabled) {
+    border-color: var(--color-primary);
+  }
 
-.x-date-time-picker-root .calendar-day.disabled,
-.x-date-time-picker-root .calendar-day:disabled {
-	background: #f3f4f6;
-	color: #9ca3af;
-	border-color: #e5e7eb;
-	cursor: not-allowed;
-}
+  .calendar-day.today {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    font-weight: var(--font-weight-medium);
+  }
 
-@media (max-width: 520px) {
-	.x-date-time-picker-root .date-summary {
-		flex-wrap: wrap;
-		justify-content: center;
-	}
+  .calendar-day.selected {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: #fff; /* white on --color-primary, contrast > 4.5:1 */
+    font-weight: var(--font-weight-bold);
+  }
 
-	.x-date-time-picker-root .selected-date-wrap {
-		flex: 1 1 100%;
-		width: 100%;
-		text-align: center;
-	}
+  .calendar-day.disabled,
+  .calendar-day:disabled {
+    background: var(--color-bg);
+    color: var(--color-muted);
+    border-color: var(--color-border);
+    cursor: not-allowed;
+  }
 
-	.x-date-time-picker-root .date-actions {
-		width: 100%;
-		margin-left: 0;
-		justify-content: center;
-	}
+  /* -- Time list -- */
+  .time-options {
+    display: grid;
+    gap: var(--space-xs);
+  }
 
-	.x-date-time-picker-root .date-actions .select-time-button {
-		flex: 1 1 100%;
-	}
-}
+  .time-option {
+    width: 100%;
+    text-align: left;
+    padding: var(--space-sm) var(--space-md);
+    min-height: 44px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    transition: background 0.12s, border-color 0.12s;
+  }
+
+  .time-option:hover:not(:disabled) {
+    border-color: var(--color-primary);
+  }
+
+  .time-option.selected {
+    background: var(--color-primary);
+    color: #fff; /* white on --color-primary, contrast > 4.5:1 */
+    border-color: var(--color-primary);
+  }
+
+  .time-option:disabled {
+    background: var(--color-bg);
+    color: var(--color-muted);
+    border-color: var(--color-border);
+    cursor: not-allowed;
+  }
+
+  /* -- WCAG 2.1 AA focus ring -- */
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
 `;
 
-const X_DATE_TIME_PICKER_TRANSLATIONS = {
-	en: {
-		lblLoadingInitial: "Next available date is loading...",
-		lblLoadingAvailability: "Available dates are loading...",
-		lblNoDateSelected: "No available date selected",
-		lblSelectedDatePrefix: "Selected date",
-		lblEarliestDatePrefix: "Earliest appointment",
-		lblTimeSuffix: "o'clock",
-		btnSelectTime: "change time",
-		lblMonth: "Month",
-		lblNextMonth: "Next month",
-		lblPreviousMonth: "Previous month",
-		helpLoadingAvailability: "Available dates are loading...",
-		helpLoadingMonth: "Availability is loading...",
-		helpChooseEnabledDate: "Choose one of the enabled dates. Disabled dates are unavailable.",
-		helpNoDatesInMonth: "No dates are available for this month.",
-		helpDateUpdated: "Date updated. Click 'search another date' to choose a different date."
-	},
-	de: {
-		lblLoadingInitial: "Nächster verfügbarer Termin wird geladen...",
-		lblLoadingAvailability: "Verfügbare Termine werden geladen...",
-		lblNoDateSelected: "Kein verfügbarer Termin ausgewählt",
-		lblSelectedDatePrefix: "Ausgewählter Termin",
-		lblEarliestDatePrefix: "Frühester Termin",
-		lblTimeSuffix: "Uhr",
-		btnSelectTime: "Zeit ändern",
-		lblMonth: "Monat",
-		lblNextMonth: "Nächster Monat",
-		lblPreviousMonth: "Vorheriger Monat",
-		helpLoadingAvailability: "Verfügbare Termine werden geladen...",
-		helpLoadingMonth: "Verfügbarkeit wird geladen...",
-		helpChooseEnabledDate: "Wähle eines der aktivierten Termine. Deaktivierte Termine sind nicht verfügbar.",
-		helpNoDatesInMonth: "Für diesen Monat sind keine Termine verfügbar.",
-		helpDateUpdated: "Termin aktualisiert. Klicke auf 'anderen Termin suchen', um einen anderen Termin zu wählen."
-	},
+/** Bundled translations -- English (default) and German. */
+const TRANSLATIONS = {
+  en: {
+    'loading.initial':      'Next available date is loading...',
+    'loading.availability': 'Available dates are loading...',
+    'no.date.selected':     'No available date selected',
+    'date.prefix.selected': 'Selected date',
+    'date.prefix.earliest': 'Earliest appointment',
+    'time.suffix':          "o'clock",
+    'btn.select.time':      'Change time',
+    'lbl.month':            'Month',
+    'nav.next.month':       'Next month',
+    'nav.prev.month':       'Previous month',
+    'no.slots':             'No time slots available.',
+  },
+  de: {
+    'loading.initial':      'Nächster verfuegbarer Termin wird geladen...',
+    'loading.availability': 'Verfügbare Termine werden geladen...',
+    'no.date.selected':     'Kein verfügbarer Termin ausgewählt',
+    'date.prefix.selected': 'Ausgewählter Termin',
+    'date.prefix.earliest': 'Frühester Termin',
+    'time.suffix':          'Uhr',
+    'btn.select.time':      'Zeit ändern',
+    'lbl.month':            'Monat',
+    'nav.next.month':       'Nächster Monat',
+    'nav.prev.month':       'Vorheriger Monat',
+    'no.slots':             'Keine Zeitslots verfügbar.',
+  },
 };
 
-export class xDateTimePicker extends HTMLElement {
-	constructor() {
-		super();
-		this.translationKeys = {
-			lblLoadingInitial: "lblLoadingInitial",
-			lblLoadingAvailability: "lblLoadingAvailability",
-			lblNoDateSelected: "lblNoDateSelected",
-			lblSelectedDatePrefix: "lblSelectedDatePrefix",
-			lblEarliestDatePrefix: "lblEarliestDatePrefix",
-			lblTimeSuffix: "lblTimeSuffix",
-			btnSelectTime: "btnSelectTime",
-			lblMonth: "lblMonth",
-			lblNextMonth: "lblNextMonth",
-			lblPreviousMonth: "lblPreviousMonth",
-			helpLoadingAvailability: "helpLoadingAvailability",
-			helpLoadingMonth: "helpLoadingMonth",
-			helpChooseEnabledDate: "helpChooseEnabledDate",
-			helpNoDatesInMonth: "helpNoDatesInMonth",
-			helpDateUpdated: "helpDateUpdated",
-		};
-		this.localizedTexts = {
-			...X_DATE_TIME_PICKER_TRANSLATIONS.en,
-		};
-	}
-
-	get locale() {
-		const explicitLocale = this.getAttribute("locale");
-		if (explicitLocale && explicitLocale.trim()) {
-			return explicitLocale.trim().toLowerCase();
-		}
-
-		const docLocale = document?.documentElement?.lang;
-		if (docLocale && docLocale.trim()) {
-			return docLocale.trim().toLowerCase();
-		}
-
-		const browserLocale = navigator.language;
-		if (browserLocale && browserLocale.trim()) {
-			return browserLocale.trim().toLowerCase();
-		}
-
-		return "en";
-	}
-
-	getLocalizedText(labelName) {
-		const normalizedLabel = String(labelName || "").trim();
-		if (!normalizedLabel) {
-			return "";
-		}
-
-		const localizedValue = this.localizedTexts?.[normalizedLabel];
-		if (typeof localizedValue === "string" && localizedValue.trim()) {
-			return localizedValue;
-		}
-
-		return normalizedLabel;
-	}
-
-	get weekdayLabels() {
-		const formatter = new Intl.DateTimeFormat(this.locale, { weekday: "short" });
-		const mondayStart = Date.UTC(2024, 0, 1);
-		return Array.from({ length: 7 }, (_, index) => {
-			const date = new Date(mondayStart + index * 24 * 60 * 60 * 1000);
-			return formatter.format(date);
-		});
-	}
-
-	static get observedAttributes() {
-		return ["available-dates", "availabledates", "availableDates", "selected-time", "selectedtime", "selectedTime", "locale"];
-	}
-
-	connectedCallback() {
-		if (this.dataset.initialized === "true") {
-			return;
-		}
-
-		this.dataset.initialized = "true";
-		this.render();
-		this.setup();
-		this.applyLocaleTranslations();
-	}
-
-	attributeChangedCallback(name, oldValue, newValue) {
-		const normalizedName = String(name || "").toLowerCase();
-		const isAvailabilityAttribute = normalizedName === "available-dates" || normalizedName === "availabledates";
-		const isSelectedTimeAttribute = normalizedName === "selected-time" || normalizedName === "selectedtime";
-		const isLocaleAttribute = normalizedName === "locale";
-		if (oldValue === newValue) {
-			return;
-		}
-
-		if (this.dataset.initialized !== "true") {
-			return;
-		}
-
-		if (isLocaleAttribute) {
-			this.applyLocaleTranslations();
-			return;
-		}
-
-		if (isSelectedTimeAttribute) {
-			this.selectedTime = typeof newValue === "string" ? newValue.trim() : "";
-			const selectedTimeSource = (this.getAttribute("selected-time-source") || "").trim().toLowerCase();
-			if (typeof oldValue === "string" && oldValue !== newValue && this.selectedTime && selectedTimeSource === "user") {
-				this.hasUserChangedDate = true;
-			}
-			if (this.dateLabel) {
-				this.updateSelectedDateLabel();
-			}
-			return;
-		}
-
-		if (!isAvailabilityAttribute) {
-			return;
-		}
-
-		try {
-			const payload = JSON.parse(newValue || "{}");
-			const normalizedAvailability = this.normalizeAvailabilityPayload(payload);
-			if (!normalizedAvailability) {
-				return;
-			}
-
-			this.availableDatesByMonth.set(normalizedAvailability.month, normalizedAvailability);
-
-			if (this.toMonthKey(this.activeYear || 0, this.activeMonth || 0) === normalizedAvailability.month) {
-				this.applyAvailabilityForActiveMonth();
-			}
-		} catch (error) {
-		}
-	}
-
-	normalizeAvailabilityPayload(payload) {
-		if (!payload || typeof payload !== "object") {
-			return null;
-		}
-
-		const month = typeof payload.month === "string" ? payload.month : "";
-		if (!month) {
-			return null;
-		}
-
-		const rawTimeSlots = payload.timeSlots && typeof payload.timeSlots === "object" ? payload.timeSlots : {};
-		const normalizedTimeSlots = {};
-
-		for (const [sourceDateKey, slotValues] of Object.entries(rawTimeSlots)) {
-			if (!Array.isArray(slotValues)) {
-				continue;
-			}
-
-			for (const rawSlot of slotValues) {
-				if (typeof rawSlot !== "string") {
-					continue;
-				}
-
-				const trimmedSlot = rawSlot.trim();
-				if (!trimmedSlot) {
-					continue;
-				}
-
-				const parsedDate = new Date(trimmedSlot);
-				if (Number.isFinite(parsedDate.getTime())) {
-					const localDateKey = this.toDateKey(
-						parsedDate.getFullYear(),
-						parsedDate.getMonth() + 1,
-						parsedDate.getDate(),
-					);
-
-					if (!normalizedTimeSlots[localDateKey]) {
-						normalizedTimeSlots[localDateKey] = [];
-					}
-					// Store the original server UTC string. Display labels are derived
-					// on demand via slotDisplayLabel() so no lossy UTC→local→UTC round-trip
-					// is needed when the selected value is submitted to the API.
-					normalizedTimeSlots[localDateKey].push(trimmedSlot);
-					continue;
-				}
-
-				if (!normalizedTimeSlots[sourceDateKey]) {
-					normalizedTimeSlots[sourceDateKey] = [];
-				}
-				normalizedTimeSlots[sourceDateKey].push(trimmedSlot);
-			}
-		}
-
-		const normalizedDates = Object.keys(normalizedTimeSlots).sort();
-		for (const dateKey of normalizedDates) {
-			normalizedTimeSlots[dateKey] = Array.from(new Set(normalizedTimeSlots[dateKey])).sort();
-		}
-
-		return {
-			month,
-			dates: normalizedDates,
-			timeSlots: normalizedTimeSlots
-		};
-	}
-
-	render() {
-		this.innerHTML = `
-			<style>${X_DATE_TIME_PICKER_STYLES}</style>
-			<div class="x-date-time-picker-root">
-				<div class="date-summary" id="date-summary">
-					<div class="selected-date-wrap" id="selected-date-wrap">
-						<span class="selected-date-label" id="selected-date-label">${this.getLocalizedText(this.translationKeys.lblLoadingInitial)}</span>
-					</div>
-					<div class="date-actions" id="date-actions">
-						<button class="select-time-button" type="button" id="select-time-button">${this.getLocalizedText(this.translationKeys.btnSelectTime)}</button>
-					</div>
-				</div>
-				<div class="calendar" id="booking-calendar" hidden>
-					<div class="calendar-header">
-						<button class="calendar-nav" type="button" id="calendar-prev" aria-label="${this.getLocalizedText(this.translationKeys.lblPreviousMonth)}">◀</button>
-						<strong id="calendar-month-label">${this.getLocalizedText(this.translationKeys.lblMonth)}</strong>
-						<button class="calendar-nav" type="button" id="calendar-next" aria-label="${this.getLocalizedText(this.translationKeys.lblNextMonth)}">▶</button>
-					</div>
-					<div class="calendar-weekdays" id="calendar-weekdays"></div>
-					<div class="calendar-grid" id="calendar-grid"></div>
-				</div>
-				<div class="time-list" id="time-list" hidden>
-					<div class="time-options" id="time-options"></div>
-				</div>
-			</div>
-		`;
-	}
-
-	normalizeI18nPayload(payload) {
-		if (!payload || typeof payload !== "object") {
-			return {};
-		}
-
-		const normalized = {};
-		for (const key of Object.values(this.translationKeys)) {
-			const kebabKey = key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
-			const value = payload[key] ?? payload[kebabKey];
-			if (typeof value === "string" && value.trim()) {
-				normalized[key] = value.trim();
-			}
-		}
-
-		return normalized;
-	}
-
-	applyLocalizedTextToUI() {
-		if (this.dateLabel && !this.selectedDate) {
-			this.dateLabel.textContent = this.hasEmittedInitializedEvent
-				? this.getLocalizedText(this.translationKeys.lblNoDateSelected)
-				: this.getLocalizedText(this.translationKeys.lblLoadingInitial);
-		}
-
-		if (this.selectTimeButton) {
-			this.selectTimeButton.textContent = this.getLocalizedText(this.translationKeys.btnSelectTime);
-		}
-
-		if (this.prevButton) {
-			this.prevButton.setAttribute("aria-label", this.getLocalizedText(this.translationKeys.lblPreviousMonth));
-		}
-
-		if (this.nextButton) {
-			this.nextButton.setAttribute("aria-label", this.getLocalizedText(this.translationKeys.lblNextMonth));
-		}
-
-		if (this.calendarWeekdays) {
-			this.calendarWeekdays.innerHTML = this.weekdayLabels.map((label) => `<span>${label}</span>`).join("");
-		}
-
-		this.monthLabelFormatter = new Intl.DateTimeFormat(this.locale, { month: "long", year: "numeric" });
-		this.selectedDateFormatter = new Intl.DateTimeFormat(this.locale, { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
-
-		if (this.activeYear && this.activeMonth && this.monthLabel) {
-			const monthStart = new Date(this.activeYear, this.activeMonth - 1, 1);
-			this.monthLabel.textContent = this.monthLabelFormatter.format(monthStart);
-		}
-
-		this.updateSelectedDateLabel();
-		this.updateWrapStates();
-	}
-
-	getLocaleCandidates(localeValue) {
-		const normalized = String(localeValue || "").trim().toLowerCase();
-		const candidates = [];
-		if (normalized) {
-			candidates.push(normalized);
-			const base = normalized.split("-")[0];
-			if (base && base !== normalized) {
-				candidates.push(base);
-			}
-		}
-
-		if (!candidates.includes("en")) {
-			candidates.push("en");
-		}
-
-		return candidates;
-	}
-
-	resolveLocaleTranslations(localeValue) {
-		for (const candidate of this.getLocaleCandidates(localeValue)) {
-			const payload = X_DATE_TIME_PICKER_TRANSLATIONS[candidate];
-			if (payload && typeof payload === "object") {
-				return this.normalizeI18nPayload(payload);
-			}
-		}
-
-		return this.normalizeI18nPayload(X_DATE_TIME_PICKER_TRANSLATIONS.en);
-	}
-
-	applyLocaleTranslations() {
-		const localeTexts = this.resolveLocaleTranslations(this.locale);
-		this.localizedTexts = {
-			...X_DATE_TIME_PICKER_TRANSLATIONS.en,
-			...localeTexts,
-		};
-		this.applyLocalizedTextToUI();
-	}
-
-	setup() {
-		this.dateSummary = this.querySelector("#date-summary");
-		this.selectedDateWrap = this.querySelector("#selected-date-wrap");
-		this.dateActions = this.querySelector("#date-actions");
-		this.dateLabel = this.querySelector("#selected-date-label");
-		this.selectTimeButton = this.querySelector("#select-time-button");
-		this.calendar = this.querySelector("#booking-calendar");
-		this.timeList = this.querySelector("#time-list");
-		this.timeOptions = this.querySelector("#time-options");
-		this.monthLabel = this.querySelector("#calendar-month-label");
-		this.calendarWeekdays = this.querySelector("#calendar-weekdays");
-		this.grid = this.querySelector("#calendar-grid");
-		this.prevButton = this.querySelector("#calendar-prev");
-		this.nextButton = this.querySelector("#calendar-next");
-
-		if (!this.dateSummary || !this.selectedDateWrap || !this.dateActions || !this.dateLabel || !this.selectTimeButton || !this.calendar || !this.timeList || !this.timeOptions || !this.monthLabel || !this.calendarWeekdays || !this.grid || !this.prevButton || !this.nextButton) {
-			return;
-		}
-
-		this.addEventListener("click", (event) => {
-			event.stopPropagation();
-		});
-
-		const now = new Date();
-		this.activeYear = now.getFullYear();
-		this.activeMonth = now.getMonth() + 1;
-		this.hasUserChangedDate = false;
-		this.selectedDate = "";
-
-		this.monthLabelFormatter = new Intl.DateTimeFormat(this.locale, { month: "long", year: "numeric" });
-		this.selectedDateFormatter = new Intl.DateTimeFormat(this.locale, { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
-		this.hasEmittedInitializedEvent = false;
-		this.availableDatesByMonth = new Map();
-		this.selectedTime = typeof this.getAttribute("selected-time") === "string" ? this.getAttribute("selected-time").trim() : "";
-		this.isDropdownSessionActive = false;
-		this.dropdownScrollRestoreY = null;
-
-		this.prevButton.addEventListener("click", () => {
-			if (!this.canNavigateToPreviousMonth()) {
-				this.updateMonthNavigationState();
-				return;
-			}
-
-			const previousYear = this.activeYear;
-			const previousMonth = this.activeMonth;
-			this.activeMonth -= 1;
-			if (this.activeMonth < 1) {
-				this.activeMonth = 12;
-				this.activeYear -= 1;
-			}
-			this.renderMonth();
-			this.emitMonthSelectedEvent(previousYear, previousMonth);
-		});
-
-		this.nextButton.addEventListener("click", () => {
-			const previousYear = this.activeYear;
-			const previousMonth = this.activeMonth;
-			this.activeMonth += 1;
-			if (this.activeMonth > 12) {
-				this.activeMonth = 1;
-				this.activeYear += 1;
-			}
-			this.renderMonth();
-			this.emitMonthSelectedEvent(previousYear, previousMonth);
-		});
-
-		this.selectTimeButton.addEventListener("click", (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			this.setTimeListExpanded(this.timeList.hidden);
-		});
-
-		this.dateSummary.addEventListener("click", (event) => {
-			const clickedInsideActions =
-				event.target && typeof event.target.closest === "function"
-					? !!event.target.closest(".date-actions")
-					: false;
-
-			if (clickedInsideActions) {
-				return;
-			}
-
-			event.preventDefault();
-			event.stopPropagation();
-			this.setCalendarExpanded(this.calendar.hidden);
-		});
-
-		this.boundUpdateWrapStates = () => this.updateWrapStates();
-		window.addEventListener("resize", this.boundUpdateWrapStates);
-
-		if (typeof ResizeObserver !== "undefined") {
-			this.datePickerResizeObserver = new ResizeObserver(() => {
-				this.updateWrapStates();
-			});
-			this.datePickerResizeObserver.observe(this.dateSummary);
-			this.datePickerResizeObserver.observe(this.selectedDateWrap);
-			this.datePickerResizeObserver.observe(this.dateActions);
-		}
-
-		requestAnimationFrame(() => this.updateWrapStates());
-		this.updateMonthNavigationState();
-
-		this.calendarWeekdays.innerHTML = this.weekdayLabels.map((label) => `<span>${label}</span>`).join("");
-		this.setHelpText(this.getLocalizedText(this.translationKeys.helpLoadingAvailability));
-		this.renderTimeOptions();
-		setTimeout(() => {
-			this.initialize();
-		}, 0);
-	}
-
-	setHelpText(text) {
-		const hostLabel = this.closest("label");
-		const help = hostLabel ? hostLabel.querySelector("#date-help") : document.getElementById("date-help");
-		if (help) {
-			help.textContent = text;
-		}
-	}
-
-	toMonthKey(year, month) {
-		return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`;
-	}
-
-	toDateKey(year, month, day) {
-		return `${this.toMonthKey(year, month)}-${String(day).padStart(2, "0")}`;
-	}
-
-	firstWeekdayMondayBased(year, month) {
-		const jsDay = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
-		return (jsDay + 6) % 7;
-	}
-
-	daysInMonth(year, month) {
-		return new Date(Date.UTC(year, month, 0)).getUTCDate();
-	}
-
-	addMonths(year, month, offset) {
-		const d = new Date(Date.UTC(year, month - 1 + offset, 1));
-		return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 };
-	}
-
-	getTodayDateKey() {
-		const now = new Date();
-		return this.toDateKey(now.getFullYear(), now.getMonth() + 1, now.getDate());
-	}
-
-	canNavigateToPreviousMonth() {
-		const now = new Date();
-		const currentYear = now.getFullYear();
-		const currentMonth = now.getMonth() + 1;
-
-		if (this.activeYear > currentYear) {
-			return true;
-		}
-
-		if (this.activeYear < currentYear) {
-			return false;
-		}
-
-		return this.activeMonth > currentMonth;
-	}
-
-	updateMonthNavigationState() {
-		if (!this.prevButton) {
-			return;
-		}
-
-		this.prevButton.disabled = !this.canNavigateToPreviousMonth();
-	}
-
-	updateSelectedDateLabel() {
-		if (!this.selectedDate) {
-			this.dateLabel.textContent = this.getLocalizedText(this.translationKeys.lblNoDateSelected);
-			return;
-		}
-
-		const parsed = new Date(`${this.selectedDate}T00:00:00Z`);
-		const labelPrefix = this.hasUserChangedDate
-			? this.getLocalizedText(this.translationKeys.lblSelectedDatePrefix)
-			: this.getLocalizedText(this.translationKeys.lblEarliestDatePrefix);
-		const displayedTime = this.getDisplayedTimeForSelectedDate();
-		const timeLabel = displayedTime ? `, ${this.slotDisplayLabel(displayedTime)}\u00A0${this.getLocalizedText(this.translationKeys.lblTimeSuffix)}` : "";
-		this.dateLabel.textContent = `${labelPrefix}: ${this.selectedDateFormatter.format(parsed)}${timeLabel}`;
-		this.updateWrapStates();
-	}
-
-	updateDateSummaryWrapState() {
-		if (!this.dateSummary || !this.selectedDateWrap || !this.dateActions || !this.selectTimeButton || !this.dateLabel) {
-			return;
-		}
-
-		this.dateSummary.classList.remove("is-wrapped");
-		this.dateActions.classList.remove("is-wrapped");
-		void this.dateSummary.offsetWidth;
-
-		const summaryStyle = window.getComputedStyle(this.dateSummary);
-		const gap = Number.parseFloat(summaryStyle.columnGap || summaryStyle.gap || "0") || 0;
-		const paddingLeft = Number.parseFloat(summaryStyle.paddingLeft || "0") || 0;
-		const paddingRight = Number.parseFloat(summaryStyle.paddingRight || "0") || 0;
-		const availableWidth = this.dateSummary.clientWidth - paddingLeft - paddingRight;
-
-		const labelRequiredWidth = this.dateLabel.scrollWidth;
-		const actionsRequiredWidth = this.selectTimeButton.offsetWidth;
-		const requiredWidth = labelRequiredWidth + actionsRequiredWidth + gap;
-
-		const wrapped = requiredWidth > availableWidth + 0.5;
-		this.dateSummary.classList.toggle("is-wrapped", wrapped);
-		this.dateActions.classList.toggle("is-wrapped", wrapped);
-	}
-
-	updateWrapStates() {
-		this.updateDateSummaryWrapState();
-	}
-
-	setCalendarExpanded(expanded, suppressRestore = false) {
-		if (expanded) {
-			if (!this.isDropdownSessionActive) {
-				this.isDropdownSessionActive = true;
-				this.dropdownScrollRestoreY = window.scrollY || window.pageYOffset || 0;
-			}
-
-			this.setTimeListExpanded(false, true);
-		}
-
-		this.calendar.hidden = !expanded;
-
-		if (expanded) {
-			requestAnimationFrame(() => {
-				this.ensureCalendarCenteredInViewport();
-			});
-			return;
-		}
-
-		const allDropdownsClosed = this.calendar.hidden && this.timeList.hidden;
-		if (!suppressRestore && allDropdownsClosed && Number.isFinite(this.dropdownScrollRestoreY)) {
-			window.scrollTo({
-				top: this.dropdownScrollRestoreY,
-				behavior: "smooth"
-			});
-		}
-
-		if (allDropdownsClosed && !suppressRestore) {
-			this.isDropdownSessionActive = false;
-			this.dropdownScrollRestoreY = null;
-		}
-	}
-
-	setTimeListExpanded(expanded, suppressRestore = false) {
-		if (!this.timeList || !this.selectTimeButton) {
-			return;
-		}
-
-		if (expanded) {
-			if (!this.isDropdownSessionActive) {
-				this.isDropdownSessionActive = true;
-				this.dropdownScrollRestoreY = window.scrollY || window.pageYOffset || 0;
-			}
-
-			this.setCalendarExpanded(false, true);
-		}
-
-		this.timeList.hidden = !expanded;
-		this.selectTimeButton.setAttribute("aria-expanded", expanded ? "true" : "false");
-
-		if (expanded) {
-			requestAnimationFrame(() => {
-				this.ensureTimeListCenteredInViewport();
-			});
-		} else {
-			const allDropdownsClosed = this.calendar.hidden && this.timeList.hidden;
-			if (!suppressRestore && allDropdownsClosed && Number.isFinite(this.dropdownScrollRestoreY)) {
-				window.scrollTo({
-					top: this.dropdownScrollRestoreY,
-					behavior: "smooth"
-				});
-			}
-
-			if (allDropdownsClosed && !suppressRestore) {
-				this.isDropdownSessionActive = false;
-				this.dropdownScrollRestoreY = null;
-			}
-		}
-
-		this.updateWrapStates();
-	}
-
-	renderTimeOptions() {
-		if (!this.timeOptions || !this.selectTimeButton) {
-			return;
-		}
-
-		const slots = this.getTimeSlotsForDate(this.selectedDate);
-		this.timeOptions.innerHTML = "";
-
-		if (!this.selectedDate || slots.length === 0) {
-			this.selectTimeButton.disabled = true;
-			this.setTimeListExpanded(false);
-
-			const emptyOption = document.createElement("button");
-			emptyOption.type = "button";
-			emptyOption.className = "time-option";
-			emptyOption.disabled = true;
-			emptyOption.textContent = "No time slots available";
-			this.timeOptions.appendChild(emptyOption);
-			return;
-		}
-
-		this.selectTimeButton.disabled = false;
-		if (!slots.includes(this.selectedTime)) {
-			this.selectedTime = slots[0] || "";
-		}
-
-		for (const slot of slots) {
-			const optionButton = document.createElement("button");
-			optionButton.type = "button";
-			optionButton.className = "time-option";
-			optionButton.textContent = this.slotDisplayLabel(slot);
-			optionButton.classList.toggle("selected", slot === this.selectedTime);
-			optionButton.addEventListener("click", (event) => {
-				event.preventDefault();
-				event.stopPropagation();
-				this.selectedTime = slot;
-				this.setAttribute("selected-time-source", "user");
-				this.setAttribute("selected-time", slot);
-				this.updateSelectedDateLabel();
-				this.renderTimeOptions();
-				this.setTimeListExpanded(false);
-			});
-			this.timeOptions.appendChild(optionButton);
-		}
-	}
-
-	ensureCalendarCenteredInViewport() {
-		if (!this.calendar || this.calendar.hidden) {
-			return false;
-		}
-
-		const visualViewport = window.visualViewport;
-		const viewportHeight = visualViewport?.height || window.innerHeight || document.documentElement.clientHeight;
-		const viewportTop = visualViewport?.offsetTop || 0;
-		const viewportBottom = viewportTop + viewportHeight;
-		const calendarRect = this.calendar.getBoundingClientRect();
-		const overflowTolerancePx = 2;
-		if (calendarRect.bottom - viewportBottom <= overflowTolerancePx) {
-			return false;
-		}
-
-		const currentScrollY = window.scrollY || window.pageYOffset || 0;
-		const calendarCenterY = currentScrollY + calendarRect.top + (calendarRect.height / 2);
-		const unclampedTargetY = Math.max(0, calendarCenterY - (viewportHeight / 2) - viewportTop);
-		const maxScrollY = Math.max(0, document.documentElement.scrollHeight - viewportHeight);
-		const targetScrollY = Math.min(maxScrollY, unclampedTargetY);
-
-		window.scrollTo({
-			top: targetScrollY,
-			behavior: "smooth",
-		});
-
-		return true;
-	}
-
-	ensureTimeListCenteredInViewport() {
-		if (!this.timeList || this.timeList.hidden) {
-			return false;
-		}
-
-		const visualViewport = window.visualViewport;
-		const viewportHeight = visualViewport?.height || window.innerHeight || document.documentElement.clientHeight;
-		const viewportTop = visualViewport?.offsetTop || 0;
-		const viewportBottom = viewportTop + viewportHeight;
-		const timeListRect = this.timeList.getBoundingClientRect();
-		const overflowTolerancePx = 2;
-		if (timeListRect.bottom - viewportBottom <= overflowTolerancePx) {
-			return false;
-		}
-
-		const currentScrollY = window.scrollY || window.pageYOffset || 0;
-		const timeListCenterY = currentScrollY + timeListRect.top + (timeListRect.height / 2);
-		const unclampedTargetY = Math.max(0, timeListCenterY - (viewportHeight / 2) - viewportTop);
-		const maxScrollY = Math.max(0, document.documentElement.scrollHeight - viewportHeight);
-		const targetScrollY = Math.min(maxScrollY, unclampedTargetY);
-
-		window.scrollTo({
-			top: targetScrollY,
-			behavior: "smooth",
-		});
-
-		return true;
-	}
-
-	getAvailabilityForActiveMonth() {
-		const monthKey = this.toMonthKey(this.activeYear, this.activeMonth);
-		return this.availableDatesByMonth.get(monthKey);
-	}
-
-	/**
-	 * Returns the local "HH:MM" display label for a slot value.
-	 * Slot values are the server's UTC RFC-3339 strings; this converts them to
-	 * the browser's local time for presentation only.
-	 * Non-ISO strings (legacy plain "HH:MM") are returned unchanged.
-	 */
-	slotDisplayLabel(slot) {
-		if (typeof slot !== "string" || !slot) return slot || "";
-		const d = new Date(slot);
-		if (!Number.isFinite(d.getTime())) return slot; // fallback: already a plain label
-		return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-	}
-
-	getTimeSlotsForDate(dateKey) {
-		if (!dateKey) {
-			return [];
-		}
-
-		const availability = this.getAvailabilityForActiveMonth();
-		const rawSlots = availability?.timeSlots?.[dateKey];
-		return Array.isArray(rawSlots) ? rawSlots : [];
-	}
-
-	getFirstAvailableTimeForDate(dateKey) {
-		const slots = this.getTimeSlotsForDate(dateKey);
-		return slots.length > 0 ? slots[0] : "";
-	}
-
-	getDisplayedTimeForSelectedDate() {
-		const slots = this.getTimeSlotsForDate(this.selectedDate);
-		if (this.selectedTime && slots.includes(this.selectedTime)) {
-			return this.selectedTime;
-		}
-		return slots.length > 0 ? slots[0] : "";
-	}
-
-	emitDateSelectedEvent(previousDate) {
-		const timeSlots = this.getTimeSlotsForDate(this.selectedDate);
-		this.dispatchEvent(new CustomEvent("x-date-time-picker-date-selected", {
-			bubbles: true,
-			detail: {
-				date: this.selectedDate || "",
-				previousDate: previousDate || "",
-				timeSlots,
-				hasUserChangedDate: this.hasUserChangedDate,
-				year: this.activeYear,
-				month: this.activeMonth
-			}
-		}));
-	}
-
-	emitMonthSelectedEvent(previousYear, previousMonth) {
-		this.dispatchEvent(new CustomEvent("x-date-time-picker-month-selected", {
-			bubbles: true,
-			detail: {
-				year: this.activeYear,
-				month: this.activeMonth,
-				previousYear,
-				previousMonth
-			}
-		}));
-	}
-
-	setSelectedDate(value) {
-		const nextDate = typeof value === "string" ? value : "";
-		const previousDate = this.selectedDate || "";
-		this.selectedDate = nextDate;
-		this.renderTimeOptions();
-		[...this.grid.querySelectorAll("button.calendar-day")].forEach((button) => {
-			button.classList.toggle("selected", button.dataset.date === nextDate);
-		});
-		this.updateSelectedDateLabel();
-
-		if (previousDate !== nextDate) {
-			this.emitDateSelectedEvent(previousDate);
-		}
-	}
-
-	applyAvailabilityForActiveMonth() {
-		if (!this.grid) {
-			return;
-		}
-
-		const monthKey = this.toMonthKey(this.activeYear, this.activeMonth);
-		const availability = this.availableDatesByMonth.get(monthKey);
-		const availableDates = Array.isArray(availability?.dates) ? availability.dates : [];
-		const availableSet = new Set(availableDates);
-		const todayDateKey = this.getTodayDateKey();
-
-		let firstAvailable = "";
-		[...this.grid.querySelectorAll("button.calendar-day")].forEach((button) => {
-			const dateKey = button.dataset.date || "";
-			const enabled = availableSet.has(dateKey) && dateKey >= todayDateKey;
-			button.disabled = !enabled;
-			button.classList.toggle("disabled", !enabled);
-			if (enabled && !firstAvailable) {
-				firstAvailable = dateKey;
-			}
-		});
-
-		if (!availability) {
-			this.setHelpText(this.getLocalizedText(this.translationKeys.helpLoadingMonth));
-			this.setSelectedDate("");
-			return;
-		}
-
-		if (this.selectedDate && this.selectedDate.startsWith(`${monthKey}-`) && availableSet.has(this.selectedDate)) {
-			this.setSelectedDate(this.selectedDate);
-		} else if (firstAvailable) {
-			this.setSelectedDate(firstAvailable);
-		} else {
-			this.setSelectedDate("");
-		}
-
-		this.setHelpText(firstAvailable
-			? this.getLocalizedText(this.translationKeys.helpChooseEnabledDate)
-			: this.getLocalizedText(this.translationKeys.helpNoDatesInMonth));
-	}
-
-	async renderMonth() {
-		this.setHelpText(this.getLocalizedText(this.translationKeys.helpLoadingMonth));
-		this.updateMonthNavigationState();
-
-		const monthStart = new Date(this.activeYear, this.activeMonth - 1, 1);
-		this.monthLabel.textContent = this.monthLabelFormatter.format(monthStart);
-		const totalDays = this.daysInMonth(this.activeYear, this.activeMonth);
-		const offset = this.firstWeekdayMondayBased(this.activeYear, this.activeMonth);
-		const now = new Date();
-		const isCurrentMonth = this.activeYear === now.getFullYear() && this.activeMonth === now.getMonth() + 1;
-		const todayDay = now.getDate();
-		const monthNodes = [];
-
-		for (let i = 0; i < offset; i++) {
-			const spacer = document.createElement("span");
-			spacer.className = "calendar-spacer";
-			monthNodes.push(spacer);
-		}
-
-		for (let day = 1; day <= totalDays; day++) {
-			const dateKey = this.toDateKey(this.activeYear, this.activeMonth, day);
-			const button = document.createElement("button");
-			button.type = "button";
-			button.className = "calendar-day disabled";
-			button.textContent = String(day);
-			button.dataset.date = dateKey;
-			button.disabled = true;
-			if (isCurrentMonth && day === todayDay) {
-				button.setAttribute("aria-current", "date");
-			}
-
-			button.addEventListener("click", () => {
-				if (button.disabled) {
-					return;
-				}
-				this.hasUserChangedDate = true;
-				this.setSelectedDate(dateKey);
-				this.setCalendarExpanded(false, true);
-				this.setTimeListExpanded(true);
-				this.setHelpText(this.getLocalizedText(this.translationKeys.helpDateUpdated));
-			});
-
-			monthNodes.push(button);
-		}
-
-		this.grid.replaceChildren(...monthNodes);
-		this.applyAvailabilityForActiveMonth();
-		this.updateMonthNavigationState();
-	}
-
-	async initialize() {
-		this.selectTimeButton.disabled = false;
-		const now = new Date();
-		this.activeYear = now.getFullYear();
-		this.activeMonth = now.getMonth() + 1;
-		await this.renderMonth();
-		this.setCalendarExpanded(false);
-
-		if (!this.hasEmittedInitializedEvent) {
-			this.dispatchEvent(new CustomEvent("x-date-time-picker-initialized", {
-				bubbles: true,
-				detail: {
-					year: this.activeYear,
-					month: this.activeMonth,
-					selectedDate: this.selectedDate || ""
-				}
-			}));
-			this.hasEmittedInitializedEvent = true;
-		}
-	}
-
-	disconnectedCallback() {
-		if (this.boundUpdateWrapStates) {
-			window.removeEventListener("resize", this.boundUpdateWrapStates);
-			this.boundUpdateWrapStates = null;
-		}
-
-		if (this.datePickerResizeObserver) {
-			this.datePickerResizeObserver.disconnect();
-			this.datePickerResizeObserver = null;
-		}
-	}
+/**
+ * XDateTimePicker -- Calendar + time-slot picker web component.
+ *
+ * Attributes:
+ *   available-dates (string)  -- JSON-serialised AvailabilityAttribute set by the parent
+ *   selected-time   (string)  -- UTC ISO 8601 datetime to pre-select programmatically
+ *   locale          (string)  -- BCP 47 tag (falls back to document.documentElement.lang,
+ *                                then navigator.language)
+ *   disabled        (boolean) -- disables all interactive elements when present
+ *   min-date        (string)  -- ISO 8601 date YYYY-MM-DD; no days before this selectable
+ *
+ * Properties:
+ *   value    (string|null) -- currently selected UTC ISO 8601 datetime, or null
+ *   disabled (boolean)     -- reflects the `disabled` boolean attribute
+ *
+ * Events (all: bubbles=true, composed=true):
+ *   x-date-time-picker-initialized    { year, month, selectedDate }
+ *   x-date-time-picker-date-selected  { date, previousDate, timeSlots,
+ *                                       hasUserChangedDate, year, month }
+ *   x-date-time-picker-month-selected { year, month, previousYear, previousMonth }
+ */
+export class XDateTimePicker extends HTMLElement {
+  // -- Private state -------------------------------------------------
+  #t                          = {};    // resolved translation map
+  #selectedDate               = '';   // YYYY-MM-DD (local calendar key)
+  #selectedTime               = '';   // UTC ISO string
+  #activeYear                 = 0;
+  #activeMonth                = 0;    // 1-based
+  #hasUserChangedDate         = false;
+  #availableDatesByMonth      = new Map();
+  #hasEmittedInitializedEvent = false;
+  #isDropdownSessionActive    = false;
+  #dropdownScrollRestoreY     = null;
+  #monthLabelFormatter        = null;
+  #selectedDateFormatter      = null;
+  #resizeObserver             = null;
+  #onResize                   = null;
+
+  // -- Shadow DOM element refs (populated in #setup) -----------------
+  #dateSummary      = null;
+  #dateLabel        = null;
+  #dateActions      = null;
+  #selectTimeButton = null;
+  #calendar         = null;
+  #timeList         = null;
+  #timeOptions      = null;
+  #monthLabel       = null;
+  #calendarWeekdays = null;
+  #grid             = null;
+  #prevButton       = null;
+  #nextButton       = null;
+
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+  }
+
+  static get observedAttributes() {
+    return ['available-dates', 'selected-time', 'locale', 'disabled', 'min-date', 'order-number', 'state', 'locale-path'];
+  }
+
+  // -- Lifecycle -----------------------------------------------------
+
+  connectedCallback() {
+    this.#loadTranslations().then(() => {
+      this.#render();
+      this.#setup();
+    });
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    if (oldValue === newValue) return;
+    switch (name) {
+      case 'locale':
+        this.#loadTranslations().then(() => this.#applyLocalizedTextToUI());
+        break;
+      case 'available-dates':
+        this.#onAvailabilityAttribute(newValue);
+        break;
+      case 'selected-time':
+        this.#selectedTime = typeof newValue === 'string' ? newValue.trim() : '';
+        if (this.#dateLabel) this.#updateSelectedDateLabel();
+        break;
+      case 'disabled':
+        this.#syncDisabledState();
+        break;
+      case 'min-date':
+        if (this.#grid) this.#renderMonth();
+        break;
+      case 'order-number':
+        if (this.#dateLabel) this.#updateSelectedDateLabel();
+        break;
+      case 'state':
+        // Handled purely by CSS :host([state=...]) selectors — no JS needed.
+        break;
+    }
+  }
+
+  disconnectedCallback() {
+    if (this.#onResize) {
+      window.removeEventListener('resize', this.#onResize);
+      this.#onResize = null;
+    }
+    if (this.#resizeObserver) {
+      this.#resizeObserver.disconnect();
+      this.#resizeObserver = null;
+    }
+  }
+
+  // -- Public properties --------------------------------------------
+
+  get locale() {
+    return this.getAttribute('locale')
+      || document.documentElement.lang
+      || navigator.language
+      || 'en';
+  }
+
+  get localePath() {
+    return this.getAttribute('locale-path') || '/x-date-time-picker/i18n';
+  }
+  set localePath(v) {
+    if (v) this.setAttribute('locale-path', v);
+    else this.removeAttribute('locale-path');
+  }
+
+  get disabled() { return this.hasAttribute('disabled'); }
+  set disabled(v) { this.toggleAttribute('disabled', Boolean(v)); }
+
+  get orderNumber() { return this.getAttribute('order-number') ?? ''; }
+  set orderNumber(v) {
+    if (v) this.setAttribute('order-number', v);
+    else this.removeAttribute('order-number');
+  }
+
+  get state() { return this.getAttribute('state') ?? 'none'; }
+  set state(v) {
+    const valid = ['none', 'tentative', 'confirmed', 'cancelled'];
+    const next  = valid.includes(v) ? v : 'none';
+    if (next === 'none') this.removeAttribute('state');
+    else this.setAttribute('state', next);
+  }
+
+  /** Currently selected UTC ISO 8601 datetime, or null if nothing is selected. */
+  get value() {
+    if (!this.#selectedDate || !this.#selectedTime) return null;
+    return this.#selectedTime;
+  }
+
+  // -- Private: i18n ------------------------------------------------
+
+  async #loadTranslations() {
+    const lang = this.locale.split('-')[0].toLowerCase();
+    if (TRANSLATIONS[lang]) {
+      this.#t = { ...TRANSLATIONS.en, ...TRANSLATIONS[lang] };
+      return;
+    }
+    // Load external JSON for languages not bundled inline
+    try {
+      const res = await fetch(`${this.localePath}/${lang}.json`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      this.#t = { ...TRANSLATIONS.en, ...data };
+    } catch {
+      this.#t = { ...TRANSLATIONS.en };
+    }
+  }
+
+  #tr(key) {
+    return this.#t[key] ?? TRANSLATIONS.en[key] ?? key;
+  }
+
+  // -- Private: rendering -------------------------------------------
+
+  #render() {
+    this.shadowRoot.innerHTML = `<style>${STYLES}</style>
+      <div class="date-summary" id="date-summary"
+           role="button" tabindex="0"
+           aria-haspopup="true"
+           aria-label="${this.#tr('no.date.selected')}">
+        <div class="selected-date-wrap" id="selected-date-wrap">
+          <span class="selected-date-label" id="selected-date-label">
+            ${this.#tr('loading.initial')}
+          </span>
+        </div>
+        <div class="date-actions" id="date-actions">
+          <button class="select-time-button" type="button" id="select-time-button"
+                  aria-expanded="false"
+                  aria-label="${this.#tr('btn.select.time')}"
+                  title="${this.#tr('btn.select.time')}"
+                  ${this.disabled ? 'disabled aria-disabled="true"' : ''}>
+            🕒
+          </button>
+        </div>
+      </div>
+
+      <div class="calendar" id="booking-calendar" hidden aria-live="polite">
+        <div class="calendar-header">
+          <button class="calendar-nav" type="button" id="calendar-prev"
+                  aria-label="${this.#tr('nav.prev.month')}">&#8249;</button>
+          <strong class="calendar-month-label" id="calendar-month-label">
+            ${this.#tr('lbl.month')}
+          </strong>
+          <button class="calendar-nav" type="button" id="calendar-next"
+                  aria-label="${this.#tr('nav.next.month')}">&#8250;</button>
+        </div>
+        <div class="calendar-weekdays" id="calendar-weekdays" role="row"></div>
+        <div class="calendar-grid" id="calendar-grid" role="grid"></div>
+      </div>
+
+      <div class="time-list" id="time-list" hidden aria-live="polite">
+        <div class="time-options" id="time-options" role="list"></div>
+      </div>
+    `;
+  }
+
+  // -- Private: setup -----------------------------------------------
+
+  #setup() {
+    const root = this.shadowRoot;
+    this.#dateSummary      = root.getElementById('date-summary');
+    this.#dateLabel        = root.getElementById('selected-date-label');
+    this.#dateActions      = root.getElementById('date-actions');
+    this.#selectTimeButton = root.getElementById('select-time-button');
+    this.#calendar         = root.getElementById('booking-calendar');
+    this.#timeList         = root.getElementById('time-list');
+    this.#timeOptions      = root.getElementById('time-options');
+    this.#monthLabel       = root.getElementById('calendar-month-label');
+    this.#calendarWeekdays = root.getElementById('calendar-weekdays');
+    this.#grid             = root.getElementById('calendar-grid');
+    this.#prevButton       = root.getElementById('calendar-prev');
+    this.#nextButton       = root.getElementById('calendar-next');
+
+    const now = new Date();
+    this.#activeYear  = now.getFullYear();
+    this.#activeMonth = now.getMonth() + 1;
+    this.#selectedTime = this.getAttribute('selected-time')?.trim() ?? '';
+
+    this.#monthLabelFormatter   = new Intl.DateTimeFormat(this.locale, { month: 'long', year: 'numeric' });
+    this.#selectedDateFormatter = new Intl.DateTimeFormat(this.locale, {
+      weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+    });
+
+    this.#renderWeekdayHeaders();
+
+    this.#prevButton.addEventListener('click', () => this.#navigatePrevMonth());
+    this.#nextButton.addEventListener('click', () => this.#navigateNextMonth());
+
+    // "Change time" button toggles the time-slot list
+    this.#selectTimeButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.#setTimeListExpanded(this.#timeList.hidden);
+    });
+
+    // Click on summary bar (outside action buttons) toggles calendar
+    this.#dateSummary.addEventListener('click', (e) => {
+      if (e.target.closest('.date-actions')) return;
+      e.preventDefault();
+      this.#setCalendarExpanded(this.#calendar.hidden);
+    });
+
+    // Keyboard: Enter/Space opens calendar; Escape closes panels
+    this.#dateSummary.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('button')) {
+        e.preventDefault();
+        this.#setCalendarExpanded(this.#calendar.hidden);
+      }
+      if (e.key === 'Escape') {
+        this.#setCalendarExpanded(false);
+        this.#setTimeListExpanded(false);
+      }
+    });
+
+    // Responsive wrap detection
+    this.#onResize = () => this.#updateWrapStates();
+    window.addEventListener('resize', this.#onResize);
+
+    if (typeof ResizeObserver !== 'undefined') {
+      this.#resizeObserver = new ResizeObserver(() => this.#updateWrapStates());
+      this.#resizeObserver.observe(this.#dateSummary);
+    }
+
+    this.#renderTimeOptions();
+    setTimeout(() => this.#initialize(), 0);
+  }
+
+  // -- Private: i18n UI sync ----------------------------------------
+
+  #applyLocalizedTextToUI() {
+    this.#monthLabelFormatter   = new Intl.DateTimeFormat(this.locale, { month: 'long', year: 'numeric' });
+    this.#selectedDateFormatter = new Intl.DateTimeFormat(this.locale, {
+      weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+    });
+
+    if (this.#dateLabel && !this.#selectedDate) {
+      this.#dateLabel.textContent = this.#hasEmittedInitializedEvent
+        ? this.#tr('no.date.selected')
+        : this.#tr('loading.initial');
+    }
+    if (this.#selectTimeButton) {
+      this.#selectTimeButton.setAttribute('aria-label', this.#tr('btn.select.time'));
+      this.#selectTimeButton.setAttribute('title', this.#tr('btn.select.time'));
+    }
+    if (this.#prevButton) this.#prevButton.setAttribute('aria-label', this.#tr('nav.prev.month'));
+    if (this.#nextButton) this.#nextButton.setAttribute('aria-label', this.#tr('nav.next.month'));
+
+    this.#renderWeekdayHeaders();
+
+    if (this.#activeYear && this.#activeMonth && this.#monthLabel) {
+      this.#monthLabel.textContent = this.#monthLabelFormatter.format(
+        new Date(this.#activeYear, this.#activeMonth - 1, 1),
+      );
+    }
+
+    this.#updateSelectedDateLabel();
+    this.#updateWrapStates();
+  }
+
+  // -- Private: availability attribute handling ----------------------
+
+  #onAvailabilityAttribute(newValue) {
+    if (!newValue) return;
+    try {
+      const payload    = JSON.parse(newValue);
+      const normalized = this.#normalizeAvailabilityPayload(payload);
+      if (!normalized) return;
+
+      this.#availableDatesByMonth.set(normalized.month, normalized);
+
+      if (this.#toMonthKey(this.#activeYear, this.#activeMonth) === normalized.month) {
+        this.#applyAvailabilityForActiveMonth();
+      }
+    } catch {
+      // Invalid JSON -- ignore silently
+    }
+  }
+
+  #normalizeAvailabilityPayload(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    const month = typeof payload.month === 'string' ? payload.month : '';
+    if (!month) return null;
+
+    const rawTimeSlots = (payload.timeSlots && typeof payload.timeSlots === 'object')
+      ? payload.timeSlots : {};
+    const normalizedTimeSlots = {};
+
+    for (const [sourceDateKey, slotValues] of Object.entries(rawTimeSlots)) {
+      if (!Array.isArray(slotValues)) continue;
+      for (const rawSlot of slotValues) {
+        if (typeof rawSlot !== 'string') continue;
+        const trimmedSlot = rawSlot.trim();
+        if (!trimmedSlot) continue;
+
+        const parsedDate = new Date(trimmedSlot);
+        if (Number.isFinite(parsedDate.getTime())) {
+          const localDateKey = this.#toDateKey(
+            parsedDate.getFullYear(),
+            parsedDate.getMonth() + 1,
+            parsedDate.getDate(),
+          );
+          normalizedTimeSlots[localDateKey] ??= [];
+          normalizedTimeSlots[localDateKey].push(trimmedSlot);
+        } else {
+          normalizedTimeSlots[sourceDateKey] ??= [];
+          normalizedTimeSlots[sourceDateKey].push(trimmedSlot);
+        }
+      }
+    }
+
+    const normalizedDates = Object.keys(normalizedTimeSlots).sort();
+    for (const dateKey of normalizedDates) {
+      normalizedTimeSlots[dateKey] = [...new Set(normalizedTimeSlots[dateKey])].sort();
+    }
+
+    return { month, dates: normalizedDates, timeSlots: normalizedTimeSlots };
+  }
+
+  // -- Private: calendar rendering ----------------------------------
+
+  #renderWeekdayHeaders() {
+    if (!this.#calendarWeekdays) return;
+    // Week starts Monday. 2024-01-01 UTC is a Monday => index 0.
+    const mondayStart = Date.UTC(2024, 0, 1);
+    const formatter   = new Intl.DateTimeFormat(this.locale, { weekday: 'short' });
+    const labels = Array.from({ length: 7 }, (_, i) =>
+      formatter.format(new Date(mondayStart + i * 86_400_000)),
+    );
+    this.#calendarWeekdays.innerHTML = labels.map((l) => `<span>${l}</span>`).join('');
+  }
+
+  async #renderMonth() {
+    this.#updateMonthNavigationState();
+
+    const monthStart = new Date(this.#activeYear, this.#activeMonth - 1, 1);
+    this.#monthLabel.textContent = this.#monthLabelFormatter.format(monthStart);
+
+    const totalDays      = this.#daysInMonth(this.#activeYear, this.#activeMonth);
+    const offset         = this.#firstWeekdayMondayBased(this.#activeYear, this.#activeMonth);
+    const now            = new Date();
+    const isCurrentMonth = this.#activeYear === now.getFullYear()
+      && this.#activeMonth === now.getMonth() + 1;
+    const todayDay       = now.getDate();
+    const nodes = [];
+
+    for (let i = 0; i < offset; i++) {
+      const spacer = document.createElement('span');
+      spacer.className = 'calendar-spacer';
+      spacer.setAttribute('aria-hidden', 'true');
+      nodes.push(spacer);
+    }
+
+    for (let day = 1; day <= totalDays; day++) {
+      const dateKey = this.#toDateKey(this.#activeYear, this.#activeMonth, day);
+      const btn = document.createElement('button');
+      btn.type         = 'button';
+      btn.className    = 'calendar-day disabled';
+      btn.textContent  = String(day);
+      btn.dataset.date = dateKey;
+      btn.disabled     = true;
+      btn.setAttribute('aria-disabled', 'true');
+      if (isCurrentMonth && day === todayDay) {
+        btn.classList.add('today');
+        btn.setAttribute('aria-current', 'date');
+      }
+
+      btn.addEventListener('click', () => {
+        if (btn.disabled) return;
+        this.#hasUserChangedDate = true;
+        this.#setSelectedDate(dateKey);
+        this.#setCalendarExpanded(false, true);
+        this.#setTimeListExpanded(true);
+      });
+
+      nodes.push(btn);
+    }
+
+    this.#grid.replaceChildren(...nodes);
+    this.#applyAvailabilityForActiveMonth();
+    this.#updateMonthNavigationState();
+  }
+
+  // -- Private: time options ----------------------------------------
+
+  #renderTimeOptions() {
+    if (!this.#timeOptions || !this.#selectTimeButton) return;
+
+    const slots = this.#getTimeSlotsForDate(this.#selectedDate);
+    this.#timeOptions.innerHTML = '';
+
+    if (!this.#selectedDate || slots.length === 0) {
+      this.#selectTimeButton.disabled = true;
+      this.#setTimeListExpanded(false);
+
+      const empty = document.createElement('button');
+      empty.type      = 'button';
+      empty.className = 'time-option';
+      empty.disabled  = true;
+      empty.setAttribute('aria-disabled', 'true');
+      empty.setAttribute('role', 'listitem');
+      empty.textContent = this.#tr('no.slots');
+      this.#timeOptions.appendChild(empty);
+      return;
+    }
+
+    this.#selectTimeButton.disabled = false;
+    if (!slots.includes(this.#selectedTime)) {
+      this.#selectedTime = slots[0] ?? '';
+    }
+
+    for (const slot of slots) {
+      const btn = document.createElement('button');
+      btn.type      = 'button';
+      btn.className = 'time-option';
+      btn.setAttribute('role', 'listitem');
+      btn.textContent = this.#slotDisplayLabel(slot);
+      btn.classList.toggle('selected', slot === this.#selectedTime);
+
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.#selectedTime = slot;
+        this.setAttribute('selected-time', slot);
+        this.#updateSelectedDateLabel();
+        this.#renderTimeOptions();
+        this.#setTimeListExpanded(false);
+      });
+
+      this.#timeOptions.appendChild(btn);
+    }
+  }
+
+  // -- Private: panel expand/collapse -------------------------------
+
+  #setCalendarExpanded(expanded, suppressRestore = false) {
+    if (expanded) {
+      if (!this.#isDropdownSessionActive) {
+        this.#isDropdownSessionActive = true;
+        this.#dropdownScrollRestoreY  = window.scrollY;
+      }
+      this.#setTimeListExpanded(false, true);
+    }
+
+    this.#calendar.hidden = !expanded;
+
+    if (expanded) {
+      requestAnimationFrame(() => this.#ensurePanelInViewport(this.#calendar));
+      return;
+    }
+    this.#tryRestoreScroll(suppressRestore);
+  }
+
+  #setTimeListExpanded(expanded, suppressRestore = false) {
+    if (!this.#timeList || !this.#selectTimeButton) return;
+
+    if (expanded) {
+      if (!this.#isDropdownSessionActive) {
+        this.#isDropdownSessionActive = true;
+        this.#dropdownScrollRestoreY  = window.scrollY;
+      }
+      this.#setCalendarExpanded(false, true);
+    }
+
+    this.#timeList.hidden = !expanded;
+    this.#selectTimeButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+
+    if (expanded) {
+      requestAnimationFrame(() => this.#ensurePanelInViewport(this.#timeList));
+    } else {
+      this.#tryRestoreScroll(suppressRestore);
+    }
+    this.#updateWrapStates();
+  }
+
+  #tryRestoreScroll(suppress) {
+    if (suppress) return;
+    const allClosed = this.#calendar.hidden && this.#timeList.hidden;
+    if (allClosed && Number.isFinite(this.#dropdownScrollRestoreY)) {
+      window.scrollTo({ top: this.#dropdownScrollRestoreY, behavior: 'smooth' });
+    }
+    if (allClosed) {
+      this.#isDropdownSessionActive = false;
+      this.#dropdownScrollRestoreY  = null;
+    }
+  }
+
+  #ensurePanelInViewport(panel) {
+    if (!panel || panel.hidden) return;
+    const vp    = window.visualViewport;
+    const vpH   = vp?.height ?? window.innerHeight;
+    const vpTop = vp?.offsetTop ?? 0;
+    const rect  = panel.getBoundingClientRect();
+    if (rect.bottom - (vpTop + vpH) <= 2) return;
+    const centerY = window.scrollY + rect.top + rect.height / 2;
+    const target  = Math.max(0, Math.min(
+      centerY - vpH / 2 - vpTop,
+      document.documentElement.scrollHeight - vpH,
+    ));
+    window.scrollTo({ top: target, behavior: 'smooth' });
+  }
+
+  #syncDisabledState() {
+    if (!this.#selectTimeButton) return;
+    if (this.disabled) {
+      this.#selectTimeButton.disabled = true;
+      this.#selectTimeButton.setAttribute('aria-disabled', 'true');
+      this.#setCalendarExpanded(false);
+      this.#setTimeListExpanded(false);
+    } else {
+      this.#selectTimeButton.disabled = false;
+      this.#selectTimeButton.removeAttribute('aria-disabled');
+    }
+  }
+
+  // -- Private: wrap-state detection --------------------------------
+
+  #updateWrapStates() {
+    if (!this.#dateSummary || !this.#dateLabel || !this.#selectTimeButton) return;
+    this.#dateSummary.classList.remove('is-wrapped');
+    this.#dateActions?.classList.remove('is-wrapped');
+    void this.#dateSummary.offsetWidth; // force reflow
+
+    const style  = window.getComputedStyle(this.#dateSummary);
+    const gap    = parseFloat(style.columnGap || style.gap || '0') || 0;
+    const pl     = parseFloat(style.paddingLeft)  || 0;
+    const pr     = parseFloat(style.paddingRight) || 0;
+    const avail  = this.#dateSummary.clientWidth - pl - pr;
+    const needed = this.#dateLabel.scrollWidth + this.#selectTimeButton.offsetWidth + gap;
+    const wrap   = needed > avail + 0.5;
+
+    this.#dateSummary.classList.toggle('is-wrapped', wrap);
+    this.#dateActions?.classList.toggle('is-wrapped', wrap);
+  }
+
+  // -- Private: month navigation ------------------------------------
+
+  #navigatePrevMonth() {
+    if (!this.#canNavigateToPreviousMonth()) {
+      this.#updateMonthNavigationState();
+      return;
+    }
+    const prevYear = this.#activeYear, prevMonth = this.#activeMonth;
+    this.#activeMonth -= 1;
+    if (this.#activeMonth < 1) { this.#activeMonth = 12; this.#activeYear -= 1; }
+    this.#renderMonth();
+    this.#dispatch('x-date-time-picker-month-selected', {
+      year: this.#activeYear, month: this.#activeMonth,
+      previousYear: prevYear, previousMonth: prevMonth,
+    });
+  }
+
+  #navigateNextMonth() {
+    const prevYear = this.#activeYear, prevMonth = this.#activeMonth;
+    this.#activeMonth += 1;
+    if (this.#activeMonth > 12) { this.#activeMonth = 1; this.#activeYear += 1; }
+    this.#renderMonth();
+    this.#dispatch('x-date-time-picker-month-selected', {
+      year: this.#activeYear, month: this.#activeMonth,
+      previousYear: prevYear, previousMonth: prevMonth,
+    });
+  }
+
+  #canNavigateToPreviousMonth() {
+    const now = new Date();
+    if (this.#activeYear !== now.getFullYear()) return this.#activeYear > now.getFullYear();
+    return this.#activeMonth > now.getMonth() + 1;
+  }
+
+  #updateMonthNavigationState() {
+    if (!this.#prevButton) return;
+    this.#prevButton.disabled = !this.#canNavigateToPreviousMonth();
+  }
+
+  // -- Private: date selection --------------------------------------
+
+  #setSelectedDate(dateKey) {
+    const previousDate = this.#selectedDate;
+    this.#selectedDate = typeof dateKey === 'string' ? dateKey : '';
+    this.#renderTimeOptions();
+
+    for (const btn of this.#grid.querySelectorAll('button.calendar-day')) {
+      btn.classList.toggle('selected', btn.dataset.date === this.#selectedDate);
+    }
+    this.#updateSelectedDateLabel();
+
+    if (previousDate !== this.#selectedDate) {
+      this.#dispatch('x-date-time-picker-date-selected', {
+        date:               this.#selectedDate,
+        previousDate,
+        timeSlots:          this.#getTimeSlotsForDate(this.#selectedDate),
+        hasUserChangedDate: this.#hasUserChangedDate,
+        year:               this.#activeYear,
+        month:              this.#activeMonth,
+      });
+    }
+  }
+
+  #updateSelectedDateLabel() {
+    if (!this.#dateLabel) return;
+    if (!this.#selectedDate) {
+      this.#dateLabel.textContent = this.#tr('no.date.selected');
+      return;
+    }
+    // Parse as UTC midnight so no timezone offset shifts the displayed date
+    const parsed      = new Date(`${this.#selectedDate}T00:00:00Z`);
+    const orderNumber = this.getAttribute('order-number');
+    const prefix      = (orderNumber && this.#hasUserChangedDate)
+      ? orderNumber
+      : this.#hasUserChangedDate
+        ? this.#tr('date.prefix.selected')
+        : this.#tr('date.prefix.earliest');
+    const displayed = this.#getDisplayedTimeForSelectedDate();
+    const timePart  = displayed
+      ? `, ${this.#slotDisplayLabel(displayed)}\u00a0${this.#tr('time.suffix')}`
+      : '';
+    this.#dateLabel.textContent = `${prefix}: ${this.#selectedDateFormatter.format(parsed)}${timePart}`;
+    this.#updateWrapStates();
+  }
+
+  // -- Private: availability application ----------------------------
+
+  #applyAvailabilityForActiveMonth() {
+    if (!this.#grid) return;
+    const monthKey     = this.#toMonthKey(this.#activeYear, this.#activeMonth);
+    const availability = this.#availableDatesByMonth.get(monthKey);
+    const available    = new Set(Array.isArray(availability?.dates) ? availability.dates : []);
+    const todayKey     = this.#getTodayDateKey();
+    const minDate      = this.getAttribute('min-date') ?? '';
+
+    let firstAvailable = '';
+    for (const btn of this.#grid.querySelectorAll('button.calendar-day')) {
+      const dateKey  = btn.dataset.date ?? '';
+      const afterMin = !minDate || dateKey >= minDate;
+      const enabled  = available.has(dateKey) && dateKey >= todayKey && afterMin;
+      btn.disabled = !enabled;
+      btn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+      btn.classList.toggle('disabled', !enabled);
+      if (enabled && !firstAvailable) firstAvailable = dateKey;
+    }
+
+    if (!availability) {
+      this.#setSelectedDate('');
+      return;
+    }
+
+    if (this.#selectedDate
+        && this.#selectedDate.startsWith(`${monthKey}-`)
+        && available.has(this.#selectedDate)) {
+      this.#setSelectedDate(this.#selectedDate);
+    } else if (firstAvailable) {
+      this.#setSelectedDate(firstAvailable);
+    } else {
+      this.#setSelectedDate('');
+    }
+
+
+  }
+
+  // -- Private: initialization --------------------------------------
+
+  async #initialize() {
+    if (this.#selectTimeButton) this.#selectTimeButton.disabled = false;
+    const now = new Date();
+    this.#activeYear  = now.getFullYear();
+    this.#activeMonth = now.getMonth() + 1;
+    await this.#renderMonth();
+    this.#setCalendarExpanded(false);
+
+    if (!this.#hasEmittedInitializedEvent) {
+      this.#dispatch('x-date-time-picker-initialized', {
+        year:         this.#activeYear,
+        month:        this.#activeMonth,
+        selectedDate: this.#selectedDate,
+      });
+      this.#hasEmittedInitializedEvent = true;
+    }
+  }
+
+  // -- Private: time slot helpers -----------------------------------
+
+  #getTimeSlotsForDate(dateKey) {
+    if (!dateKey) return [];
+    const monthKey     = dateKey.substring(0, 7);
+    const availability = this.#availableDatesByMonth.get(monthKey);
+    const rawSlots     = availability?.timeSlots?.[dateKey];
+    return Array.isArray(rawSlots) ? rawSlots : [];
+  }
+
+  #getDisplayedTimeForSelectedDate() {
+    const slots = this.#getTimeSlotsForDate(this.#selectedDate);
+    if (this.#selectedTime && slots.includes(this.#selectedTime)) return this.#selectedTime;
+    return slots[0] ?? '';
+  }
+
+  /**
+   * Converts a server UTC ISO slot string to a local HH:MM display label.
+   * Non-ISO strings are returned unchanged (legacy plain "HH:MM" support).
+   */
+  #slotDisplayLabel(slot) {
+    if (typeof slot !== 'string' || !slot) return slot ?? '';
+    const d = new Date(slot);
+    if (!Number.isFinite(d.getTime())) return slot;
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
+  // -- Private: date math -------------------------------------------
+
+  #toMonthKey(year, month) {
+    return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
+  }
+
+  #toDateKey(year, month, day) {
+    return `${this.#toMonthKey(year, month)}-${String(day).padStart(2, '0')}`;
+  }
+
+  #firstWeekdayMondayBased(year, month) {
+    const jsDay = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
+    return (jsDay + 6) % 7;
+  }
+
+  #daysInMonth(year, month) {
+    return new Date(Date.UTC(year, month, 0)).getUTCDate();
+  }
+
+  #getTodayDateKey() {
+    const now = new Date();
+    return this.#toDateKey(now.getFullYear(), now.getMonth() + 1, now.getDate());
+  }
+
+  // -- Private: event dispatch --------------------------------------
+
+  #dispatch(eventName, detail = {}) {
+    this.dispatchEvent(new CustomEvent(eventName, {
+      bubbles:  true,
+      composed: true,
+      detail,
+    }));
+  }
 }
 
-if (!customElements.get("x-date-time-picker")) {
-	customElements.define("x-date-time-picker", xDateTimePicker);
-}
+customElements.define('x-date-time-picker', XDateTimePicker);

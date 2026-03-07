@@ -130,8 +130,13 @@ func buildCaldavHandler(combined *combinedCalendarStore, rootPath string) http.H
 		// principal as scheduling-capable and enables free/busy related UI.
 		if r.URL.Path == principalPath && r.Method == "PROPFIND" {
 			defaultCalHref := ""
-			if cals, err := combined.ListCalendars(r.Context()); err == nil && len(cals) > 0 {
-				defaultCalHref = rootPath + "/caldav/user/calendars/" + cals[0].ID + "/"
+			if cals, err := combined.ListCalendars(r.Context()); err == nil {
+				for _, c := range cals {
+					if !strings.HasPrefix(c.ID, availCalPrefix) {
+						defaultCalHref = rootPath + "/caldav/user/calendars/" + c.ID + "/"
+						break
+					}
+				}
 			}
 			userEmail := "user@schedio.local"
 			displayName := "User"
@@ -419,14 +424,15 @@ func calendarHomeMultistatus(ctx context.Context, store calstore.CalendarStore, 
 		return "", err
 	}
 
-	// Compute the default calendar href (first calendar) and the free-busy hrefs
-	// for the schedule-inbox so iOS knows which calendars participate in scheduling.
+	// Compute the default calendar href (first non-avail calendar) and the
+	// free-busy hrefs for the schedule-inbox so iOS knows which calendars
+	// participate in scheduling.
 	defaultCalHref := ""
 	freeBusyHrefs := ""
 	for _, c := range cals {
 		h := home + c.ID + "/"
 		freeBusyHrefs += "<d:href>" + xmlEscape(h) + "</d:href>"
-		if defaultCalHref == "" {
+		if defaultCalHref == "" && !strings.HasPrefix(c.ID, availCalPrefix) {
 			defaultCalHref = h
 		}
 	}
@@ -548,8 +554,12 @@ func calendarIDFromCollectionPath(path, rootPath string) (string, bool) {
 
 // calendarCollectionResponseXML returns the <d:response> element for a
 // calendar collection, without the multistatus wrapper. It is shared between
-// the Depth:0 and Depth:1 PROPFIND handlers.
-func calendarCollectionResponseXML(cal *calstore.Calendar, href string) string {
+// the Depth:0 and Depth:1 PROPFIND handlers. ctag is the current collection
+// tag (used for change detection); pass "0" when unavailable.
+func calendarCollectionResponseXML(cal *calstore.Calendar, href, ctag string) string {
+	if ctag == "" {
+		ctag = "0"
+	}
 	return `	<d:response>
 		<d:href>` + xmlEscape(href) + `</d:href>
 		<d:propstat>
@@ -565,6 +575,8 @@ func calendarCollectionResponseXML(cal *calstore.Calendar, href string) string {
 					<d:supported-report><d:report><cal:calendar-query/></d:report></d:supported-report>
 					<d:supported-report><d:report><cal:free-busy-query/></d:report></d:supported-report>
 				</d:supported-report-set>
+				<cs:getctag>` + xmlEscape(ctag) + `</cs:getctag>
+				<s:sync-token>` + xmlEscape(ctag) + `</s:sync-token>
 				<d:displayname>` + xmlEscape(cal.Name) + `</d:displayname>
 				<cal:calendar-description>` + xmlEscape(cal.Description) + `</cal:calendar-description>
 				<cal:supported-calendar-component-set>
@@ -594,10 +606,14 @@ func calendarCollectionMultistatus(ctx context.Context, store calstore.CalendarS
 	if err != nil {
 		return "", err
 	}
+	ctag, ctagErr := store.CTag(ctx, calID)
+	if ctagErr != nil || ctag == "" {
+		ctag = "0"
+	}
 	href := rootPath + "/caldav/user/calendars/" + cal.ID + "/"
 	return `<?xml version="1.0" encoding="UTF-8"?>
-<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
-` + calendarCollectionResponseXML(cal, href) + `
+<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:s="http://sabredav.org/ns">
+` + calendarCollectionResponseXML(cal, href, ctag) + `
 </d:multistatus>
 `, nil
 }
@@ -617,6 +633,10 @@ func calendarCollectionDepth1Multistatus(ctx context.Context, store calstore.Cal
 	if err != nil {
 		return "", err
 	}
+	ctag, ctagErr := store.CTag(ctx, calID)
+	if ctagErr != nil || ctag == "" {
+		ctag = "0"
+	}
 	href := rootPath + "/caldav/user/calendars/" + cal.ID + "/"
 	events, err := store.ListEvents(ctx, calID, time.Time{}, time.Time{})
 	if err != nil {
@@ -624,9 +644,9 @@ func calendarCollectionDepth1Multistatus(ctx context.Context, store calstore.Cal
 	}
 	var b strings.Builder
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
-<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">
+<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/" xmlns:s="http://sabredav.org/ns">
 `)
-	b.WriteString(calendarCollectionResponseXML(cal, href))
+	b.WriteString(calendarCollectionResponseXML(cal, href, ctag))
 	for _, e := range events {
 		b.WriteByte('\n')
 		b.WriteString(calendarObjectResponseXML(rootPath, calID, e))

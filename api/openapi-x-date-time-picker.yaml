@@ -1,0 +1,375 @@
+openapi: 3.0.3
+info:
+  title: x-date-time-picker – API Contract
+  version: 1.0.0
+  description: |
+    ## Purpose
+
+    This document defines the HTTP API contract consumed by the
+    `<x-date-time-picker>` Web Component and the component's own element
+    interface (attributes, JS properties, and custom events).
+
+    It is intended as a standalone reference so that the component can be
+    re-implemented in any project — against this common contract — without
+    coupling to the schedio source code.
+
+    ---
+
+    ## Component overview
+
+    `<x-date-time-picker>` is a self-contained Custom Element that renders an
+    interactive calendar plus a list of available time slots and emits a single ISO-8601
+    datetime value when the user makes a selection.
+
+    The component makes **two distinct API calls**, both to the same endpoint
+    but with different `period` granularities:
+
+    | When | `period` format | Purpose |
+    |---|---|---|
+    | Parent provides month availability | `YYYY-MM` | Determine which calendar days have at least one free slot |
+    | User clicks an enabled calendar day | `YYYY-MM-DD` | Load the concrete time slots for that day |
+
+    The parent component (e.g. `<x-booking-line>`) is responsible for the
+    month-level fetch and passes the result to `<x-date-time-picker>` via the
+    `available-dates` attribute. The day-level fetch is performed by the
+    component itself when the user selects a date.
+
+    ---
+
+    ## Element interface
+
+    ### Observed attributes
+
+    | Attribute | Type | Default | Description |
+    |---|---|---|---|
+    | `availability-endpoint` | `string` | `/api/v1/availability` | Base URL for availability queries. `service_id` and `period` are appended as query parameters automatically. |
+    | `service-id` | `string` | `""` | UUID of the service to query. Passed as `?service_id=` in all requests. |
+    | `min-date` | `string` | today | ISO-8601 date (`YYYY-MM-DD`). No dates before this are shown or selectable. |
+    | `disabled` | `boolean` | `false` | When present, all interactive elements are inert (`aria-disabled`) and visually dimmed. |
+    | `available-dates` | `string` | `""` | JSON-serialised `AvailabilityAttribute` object (see schema below). Set by the parent with the month-level availability payload. |
+    | `selected-time` | `string` | `""` | ISO-8601 datetime (`YYYY-MM-DDTHH:mm`) to pre-select programmatically. |
+    | `locale` | `string` | auto | BCP 47 locale tag (`de`, `en`, `de-AT`, …). Falls back to `document.documentElement.lang` then `navigator.language`. |
+
+    ### JS properties
+
+    | Property | Type | Description |
+    |---|---|---|
+    | `value` | `string \| null` | The currently selected ISO-8601 datetime string (`YYYY-MM-DDTHH:mm`). Settable programmatically; updating it does **not** trigger an API fetch. |
+    | `availableDays` | `string[]` | Read-only. Cached list of ISO-8601 dates (`YYYY-MM-DD`) that have at least one available slot in the currently displayed month. |
+
+    ### Custom events
+
+    | Event | `detail` shape | When dispatched |
+    |---|---|---|
+    | `date-time-selected` | `{ value: string }` | User taps a time-slot button; `value` is ISO-8601 datetime (`YYYY-MM-DDTHH:mm`). |
+    | `date-time-cleared` | `{}` | User explicitly clears the current selection. |
+
+    ### Internal states
+
+    | State | Description |
+    |---|---|
+    | `collapsed` | Shows the selected value (or a placeholder) and an "open" button. |
+    | `calendar-open` | Month calendar is visible; user picks a date. |
+    | `loading-slots` | Day-level fetch in progress; spinner shown. |
+    | `time-slots-open` | Time-slot buttons for the chosen date are rendered. |
+    | `no-slots` | Day-level response contained no slots; user is prompted to choose another date. |
+
+    ### Minimal usage example
+
+    ```html
+    <x-date-time-picker
+      service-id="3fa85f64-5717-4562-b3fc-2c963f66afa6"
+      min-date="2026-03-15"
+      availability-endpoint="/api/v1/availability"
+      locale="de">
+    </x-date-time-picker>
+    ```
+
+    The parent feeds monthly availability data into the component by setting
+    the `available-dates` attribute with a JSON-serialised `AvailabilityAttribute`
+    object (see the `AvailabilityAttribute` schema for the exact shape).
+
+servers:
+  - url: https://your-schedio-host
+    description: Production schedio instance
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: availability
+    description: |
+      Time-slot availability queries. Both calls made by `<x-date-time-picker>`
+      use this single endpoint with different `period` granularities.
+
+paths:
+
+  /api/v1/availability:
+    get:
+      tags: [availability]
+      operationId: getAvailability
+      summary: Query available time slots for a service
+      description: |
+        Returns the available start times for a given service scoped to either
+        a whole calendar month or a single calendar day.
+
+        `<x-date-time-picker>` calls this endpoint in two distinct situations:
+
+        **Month query** (`period` = `YYYY-MM`)
+        - Triggered by the parent component when the user first views the
+          calendar or navigates to a new month.
+        - Response is serialised as an `AvailabilityAttribute` JSON object and
+          written to the component's `available-dates` attribute.
+        - The component uses the list of dates with non-empty slot arrays to
+          determine which calendar days are selectable.
+
+        **Day query** (`period` = `YYYY-MM-DD`)
+        - Triggered internally by `<x-date-time-picker>` when the user clicks
+          an enabled calendar day.
+        - Request URL: `{availability-endpoint}?service_id={service-id}&period={YYYY-MM-DD}`
+        - The component reads the slots for the single day from the response
+          and renders them as time-slot buttons.
+
+        ### Response shape
+
+        The API always returns the same `AvailabilityResponse` envelope. The
+        outer key is a month string (`YYYY-MM`); the inner keys are ISO-8601
+        dates. Values are arrays of available UTC start timestamps (RFC 3339).
+        Days with no available slots are **omitted** entirely.
+
+        ```json
+        {
+          "months": {
+            "2026-03": {
+              "2026-03-15": [
+                "2026-03-15T09:00:00Z",
+                "2026-03-15T09:15:00Z",
+                "2026-03-15T10:00:00Z"
+              ],
+              "2026-03-16": [
+                "2026-03-16T11:00:00Z"
+              ]
+            }
+          }
+        }
+        ```
+
+        ### Timezone handling
+
+        All timestamps are returned as UTC (`Z` suffix). The component converts
+        each timestamp to the browser's local timezone using
+        `Intl.DateTimeFormat` for display purposes only. The original UTC string
+        is preserved in memory and emitted as-is in the `date-time-selected`
+        event so the parent can submit it to the booking API without a
+        lossy round-trip.
+
+      parameters:
+        - name: service_id
+          in: query
+          required: true
+          description: |
+            UUID of the service to query. Matches the component's `service-id`
+            attribute value.
+          schema:
+            type: string
+            format: uuid
+            example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+
+        - name: period
+          in: query
+          required: true
+          description: |
+            Time scope for the query. Two formats are accepted:
+
+            | Format | Scope |
+            |---|---|
+            | `YYYY-MM` | All available days in the given calendar month |
+            | `YYYY-MM-DD` | A single calendar day |
+
+            The backend detects the format automatically from the string length.
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}(-\d{2})?$'
+          examples:
+            month:
+              summary: Month query
+              value: '2026-03'
+            day:
+              summary: Single-day query
+              value: '2026-03-15'
+
+      responses:
+        '200':
+          description: |
+            Availability map. Days with no available slots are omitted. For a
+            month query the response may contain multiple days; for a day query
+            it contains at most one day under the corresponding month key.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AvailabilityResponse'
+              examples:
+                month:
+                  summary: Month query – multiple days with slots
+                  value:
+                    months:
+                      "2026-03":
+                        "2026-03-15":
+                          - "2026-03-15T09:00:00Z"
+                          - "2026-03-15T09:15:00Z"
+                          - "2026-03-15T10:00:00Z"
+                        "2026-03-16":
+                          - "2026-03-16T11:00:00Z"
+                          - "2026-03-16T14:00:00Z"
+                day:
+                  summary: Day query – slots for one day
+                  value:
+                    months:
+                      "2026-03":
+                        "2026-03-15":
+                          - "2026-03-15T09:00:00Z"
+                          - "2026-03-15T09:15:00Z"
+                          - "2026-03-15T10:00:00Z"
+                empty:
+                  summary: No slots available for the queried period
+                  value:
+                    months: {}
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+
+  schemas:
+
+    AvailabilityResponse:
+      type: object
+      description: |
+        Envelope returned by `GET /api/v1/availability`.
+        The outer key is always a month string (`YYYY-MM`). For a month query
+        all days that have at least one available slot appear as inner keys;
+        for a day query only the one requested day is present (if it has slots).
+        Days with no slots are omitted entirely.
+      required: [months]
+      properties:
+        months:
+          type: object
+          description: |
+            Map of `YYYY-MM` → day map.
+          additionalProperties:
+            $ref: '#/components/schemas/DaySlotMap'
+      example:
+        months:
+          "2026-03":
+            "2026-03-15":
+              - "2026-03-15T09:00:00Z"
+              - "2026-03-15T09:15:00Z"
+            "2026-03-16":
+              - "2026-03-16T11:00:00Z"
+
+    DaySlotMap:
+      type: object
+      description: |
+        Map of ISO-8601 date (`YYYY-MM-DD`) → list of available start
+        timestamps. Values are RFC 3339 UTC strings. Days with no available
+        slots are omitted rather than represented as empty arrays.
+      additionalProperties:
+        type: array
+        items:
+          type: string
+          format: date-time
+          description: Available start time as RFC 3339 UTC timestamp
+          example: '2026-03-15T09:15:00Z'
+
+    AvailabilityAttribute:
+      type: object
+      description: |
+        The JSON shape the **parent component** serialises into the
+        `available-dates` attribute to pass month-level availability data into
+        `<x-date-time-picker>`.
+
+        This is **not** the shape returned by the API endpoint; the parent must
+        map the `AvailabilityResponse` into this shape before setting the
+        attribute. The mapping is straightforward:
+
+        ```js
+        // Given an AvailabilityResponse for month "2026-03":
+        const dayMap = response.months["2026-03"] ?? {};
+        element.setAttribute("available-dates", JSON.stringify({
+          month: "2026-03",
+          timeSlots: dayMap   // same key/value structure
+        }));
+        ```
+      required: [month, timeSlots]
+      properties:
+        month:
+          type: string
+          pattern: '^\d{4}-\d{2}$'
+          description: The calendar month this payload covers (`YYYY-MM`).
+          example: '2026-03'
+        timeSlots:
+          type: object
+          description: |
+            Map of ISO-8601 date → list of UTC start timestamps. Same
+            structure as `DaySlotMap`. The component uses the keys to
+            determine which calendar days are enabled.
+          additionalProperties:
+            type: array
+            items:
+              type: string
+              format: date-time
+              example: '2026-03-15T09:00:00Z'
+      example:
+        month: '2026-03'
+        timeSlots:
+          '2026-03-15':
+            - '2026-03-15T09:00:00Z'
+            - '2026-03-15T09:15:00Z'
+          '2026-03-16':
+            - '2026-03-16T11:00:00Z'
+
+    DateTimeSelectedEvent:
+      type: object
+      description: |
+        The `detail` object of the `date-time-selected` CustomEvent fired by
+        `<x-date-time-picker>` when the user selects a time slot.
+
+        The `value` field contains the selected UTC start timestamp exactly as
+        returned by the availability API (RFC 3339, `Z` suffix). The parent
+        must convert it to a local `YYYY-MM-DDTHH:mm` string if needed for
+        form display, but should submit the original UTC string to the booking
+        API.
+      required: [value]
+      properties:
+        value:
+          type: string
+          format: date-time
+          description: |
+            Selected UTC start timestamp (RFC 3339). Example: `2026-03-15T09:00:00Z`.
+          example: '2026-03-15T09:00:00Z'
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                type: string
+                example: invalid period format
+
+    NotFound:
+      description: Service not found
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                type: string
+                example: service not found

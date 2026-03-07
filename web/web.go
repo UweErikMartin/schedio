@@ -51,6 +51,9 @@ var settingsFormJS []byte
 //go:embed css/styles.css
 var stylesCSS []byte
 
+//go:embed css/tokens.css
+var tokensCSS []byte
+
 //go:embed html/index.html
 var indexHTML []byte
 
@@ -78,6 +81,7 @@ var assetMap = map[string][]byte{
 	"/js/admin/admin-dashboard.js": adminDashboardJS,
 	"/js/admin/settings-form.js":   settingsFormJS,
 	"/css/styles.css":              stylesCSS,
+	"/css/tokens.css":              tokensCSS,
 	"/favicon.ico":                 favicon,
 	"/":                            indexHTML,
 	"/index.html":                  indexHTML,
