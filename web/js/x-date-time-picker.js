@@ -432,6 +432,7 @@ export class XDateTimePicker extends HTMLElement {
   #activeMonth                = 0;    // 1-based
   #hasUserChangedDate         = false;
   #availableDatesByMonth      = new Map();
+  #slotLabelCache             = new Map();
   #hasEmittedInitializedEvent = false;
   #isDropdownSessionActive    = false;
   #dropdownScrollRestoreY     = null;
@@ -735,6 +736,26 @@ export class XDateTimePicker extends HTMLElement {
     }
 
     this.#renderTimeOptions();
+
+    // Single delegated listener for all time-slot buttons; avoids attaching
+    // and garbage-collecting one listener per slot on every re-render.
+    this.#timeOptions.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-slot]');
+      if (!btn || btn.disabled) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.#hasUserChangedDate = true;
+      const slot = btn.dataset.slot;
+      this.#selectedTime = slot;
+      this.setAttribute('selected', slot);
+      this.#updateSelectedDateLabel();
+      // Toggle the selected class in-place — no full re-render needed.
+      this.#timeOptions.querySelector('button.selected')?.classList.remove('selected');
+      btn.classList.add('selected');
+      this.#setTimeListExpanded(false);
+      this.#updateActionsButton();
+    });
+
     setTimeout(() => this.#initialize(), 0);
   }
 
@@ -776,6 +797,7 @@ export class XDateTimePicker extends HTMLElement {
     // Flat JSON array of UTC ISO 8601 strings → sort chronologically, then group
     // by month and local calendar date. Index 0 is always the earliest slot.
     this.#availableDatesByMonth.clear();
+    this.#slotLabelCache.clear();
 
     if (newValue) {
       let rawSlots;
@@ -882,7 +904,6 @@ export class XDateTimePicker extends HTMLElement {
     if (!this.#timeOptions || !this.#selectTimeButton) return;
 
     const slots = this.#getTimeSlotsForDate(this.#selectedDate);
-    this.#timeOptions.innerHTML = '';
 
     if (!this.#selectedDate || slots.length === 0) {
       this.#selectTimeButton.disabled = true;
@@ -895,7 +916,7 @@ export class XDateTimePicker extends HTMLElement {
       empty.setAttribute('aria-disabled', 'true');
       empty.setAttribute('role', 'listitem');
       empty.textContent = this.#tr('no.slots');
-      this.#timeOptions.appendChild(empty);
+      this.#timeOptions.replaceChildren(empty);
       return;
     }
 
@@ -904,28 +925,21 @@ export class XDateTimePicker extends HTMLElement {
       this.#selectedTime = slots[0] ?? '';
     }
 
+    // Build all buttons in a DocumentFragment to avoid per-element reflows.
+    // Click handling is done via a single delegated listener on #timeOptions
+    // (set up once in #setup) using the data-slot attribute.
+    const frag = document.createDocumentFragment();
     for (const slot of slots) {
       const btn = document.createElement('button');
       btn.type      = 'button';
       btn.className = 'time-option';
       btn.setAttribute('role', 'listitem');
+      btn.dataset.slot = slot;
       btn.textContent = this.#slotDisplayLabel(slot);
-      btn.classList.toggle('selected', slot === this.#selectedTime);
-
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.#hasUserChangedDate = true;
-        this.#selectedTime = slot;
-        this.setAttribute('selected', slot);
-        this.#updateSelectedDateLabel();
-        this.#renderTimeOptions();
-        this.#setTimeListExpanded(false);
-        this.#updateActionsButton();
-      });
-
-      this.#timeOptions.appendChild(btn);
+      if (slot === this.#selectedTime) btn.classList.add('selected');
+      frag.appendChild(btn);
     }
+    this.#timeOptions.replaceChildren(frag);
   }
 
   // -- Private: panel expand/collapse -------------------------------
@@ -1254,12 +1268,17 @@ export class XDateTimePicker extends HTMLElement {
   /**
    * Converts a server UTC ISO slot string to a local HH:MM display label.
    * Non-ISO strings are returned unchanged (legacy plain "HH:MM" support).
+   * Results are memoised to avoid repeated Date allocations across re-renders.
    */
   #slotDisplayLabel(slot) {
     if (typeof slot !== 'string' || !slot) return slot ?? '';
+    if (this.#slotLabelCache.has(slot)) return this.#slotLabelCache.get(slot);
     const d = new Date(slot);
-    if (!Number.isFinite(d.getTime())) return slot;
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const label = Number.isFinite(d.getTime())
+      ? `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+      : slot;
+    this.#slotLabelCache.set(slot, label);
+    return label;
   }
 
   // -- Private: date math -------------------------------------------
