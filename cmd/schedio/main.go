@@ -27,6 +27,8 @@ func main() {
 	args := config.ParseCommandLineArgs(os.Args)
 	_ = flag.Set("v", strconv.Itoa(args.Verbose))
 
+	klog.Infof("server timezone: %s", time.Now().Location())
+
 	// MemoryStore implements both CalendarStore and DomainStore; share one
 	// instance so that settings changes (e.g. DefaultCalendarName) are
 	// immediately reflected in CalDAV responses without a restart.

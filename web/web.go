@@ -12,6 +12,9 @@ var defaultJS []byte
 //go:embed js/x-date-time-picker.js
 var dateTimePickerJS []byte
 
+//go:embed js/x-multi-date-time-picker.js
+var multiDateTimePickerJS []byte
+
 //go:embed js/x-service-picker.js
 var servicePickerJS []byte
 
@@ -23,6 +26,9 @@ var bookingAppJS []byte
 
 //go:embed js/manage/booking-manager.js
 var bookingManagerJS []byte
+
+//go:embed js/manage/session-manager.js
+var sessionManagerJS []byte
 
 //go:embed js/manage/booking-card.js
 var bookingCardJS []byte
@@ -68,10 +74,12 @@ var favicon []byte
 var assetMap = map[string][]byte{
 	"/js/default.js":                  defaultJS,
 	"/js/x-date-time-picker.js":       dateTimePickerJS,
+	"/js/x-multi-date-time-picker.js": multiDateTimePickerJS,
 	"/js/x-service-picker.js":         servicePickerJS,
 	"/js/x-toast.js":                  toastJS,
 	"/js/booking/booking-app.js":      bookingAppJS,
 	"/js/manage/booking-manager.js":   bookingManagerJS,
+	"/js/manage/session-manager.js":   sessionManagerJS,
 	"/js/manage/booking-card.js":      bookingCardJS,
 	"/js/manage/reschedule-picker.js": reschedulePickerJS,
 	"/js/manage/cancel-confirm.js":    cancelConfirmJS,

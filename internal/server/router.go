@@ -109,6 +109,9 @@ func NewRouter(args *config.Config, calStore calstore.CalendarStore, domainStore
 	mux.HandleFunc("POST "+args.RootPath+"/api/v1/sessions", sessionH.Create)
 	mux.HandleFunc("POST "+args.RootPath+"/api/v1/sessions/{id}/bookings", sessionH.AddBooking)
 	mux.HandleFunc("POST "+args.RootPath+"/api/v1/sessions/{id}/submit", sessionH.Submit)
+	mux.HandleFunc("GET "+args.RootPath+"/api/v1/sessions/{id}", sessionH.Get)
+	mux.HandleFunc("POST "+args.RootPath+"/api/v1/sessions/{id}/reschedule", sessionH.Reschedule)
+	mux.HandleFunc("DELETE "+args.RootPath+"/api/v1/sessions/{id}", sessionH.Cancel)
 
 	// ── Booking management (customer management-link endpoints) ───────────────
 	bookingH := customer.NewBookingHandler(domainStore, signer, emailSender)

@@ -27,6 +27,29 @@ type createSessionReq struct {
 	ServiceID string `json:"service_id"`
 }
 
+// sessionDetailResp is the response body for GET /api/v1/sessions/{id}.
+type sessionDetailResp struct {
+	ID       string               `json:"id"`
+	State    string               `json:"state"`
+	Service  serviceResp          `json:"service"`
+	Contact  contactResp          `json:"contact"`
+	Bookings []sessionBookingResp `json:"bookings"`
+}
+
+// sessionBookingResp is a booking line inside sessionDetailResp.
+type sessionBookingResp struct {
+	ID    string `json:"id"`
+	Start string `json:"start_at"`
+	End   string `json:"end_at"`
+	State string `json:"state"`
+}
+
+// sessionRescheduleReq is the request body for POST /api/v1/sessions/{id}/reschedule.
+type sessionRescheduleReq struct {
+	Slots    []string `json:"slots"`    // RFC 3339 UTC; one entry per active booking in start order
+	Timezone string   `json:"timezone"` // IANA tz name reported by the browser
+}
+
 type sessionResp struct {
 	ID        string `json:"id"`
 	ServiceID string `json:"service_id"`
@@ -321,7 +344,7 @@ func (h *SessionHandler) Submit(w http.ResponseWriter, r *http.Request) {
 		// and use the server's local timezone for the admin-notify email.
 		customerLoc := parseTimezone(contact.Timezone)
 
-		// Build per-booking manage links.
+		// Build per-booking manage links and the single session manage link.
 		manageLinks := make(map[string]string, len(bookings))
 		for _, b := range bookings {
 			manageLinks[b.ID] = h.manageLink(r.Context(), b.ID)
@@ -331,12 +354,13 @@ func (h *SessionHandler) Submit(w http.ResponseWriter, r *http.Request) {
 			firstLink = manageLinks[bookings[0].ID]
 		}
 		reservedData := email.ReservedData{
-			Contact:     contact,
-			Session:     session,
-			Bookings:    inTZ(bookings, customerLoc),
-			ManageLink:  firstLink,
-			ManageLinks: manageLinks,
-			SentAt:      now,
+			Contact:           contact,
+			Session:           session,
+			Bookings:          inTZ(bookings, customerLoc),
+			ManageLink:        firstLink,
+			ManageLinks:       manageLinks,
+			SessionManageLink: h.sessionManageLink(r.Context(), sessionID),
+			SentAt:            now,
 		}
 		adminData := email.AdminNotifyData{
 			Session:  session,
@@ -384,4 +408,294 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		klog.Errorf("writeJSON: %v", err)
 	}
+}
+
+// sessionManageLink builds the signed customer management URL for a whole
+// session, using CalendarURL from settings as the web root base.
+func (h *SessionHandler) sessionManageLink(ctx context.Context, sessionID string) string {
+	base := ""
+	if st, err := h.st.GetSettings(ctx); err == nil {
+		base = strings.TrimRight(st.CalendarURL, "/")
+		if idx := strings.Index(base, "/caldav"); idx != -1 {
+			base = base[:idx]
+		}
+	}
+	tok := h.signer.Sign(sessionID)
+	return fmt.Sprintf("%s/?session_id=%s&session_token=%s", base, sessionID, tok)
+}
+
+// verifySessionToken extracts and validates the ?session_token= query
+// parameter against the provided sessionID.
+func (h *SessionHandler) verifySessionToken(w http.ResponseWriter, r *http.Request, sessionID string) bool {
+	tok := r.URL.Query().Get("session_token")
+	if tok == "" {
+		http.Error(w, "session_token required", http.StatusForbidden)
+		return false
+	}
+	gotID, err := h.signer.Verify(tok)
+	if err != nil || gotID != sessionID {
+		http.Error(w, "invalid or tampered session token", http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
+// Get handles GET /api/v1/sessions/{id}?session_token=
+// Returns session details including all booking lines, service, and contact.
+func (h *SessionHandler) Get(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.PathValue("id")
+	if !h.verifySessionToken(w, r, sessionID) {
+		return
+	}
+
+	session, err := h.st.GetSession(r.Context(), sessionID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	svc, err := h.st.GetService(r.Context(), session.ServiceID)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	var contact contactResp
+	if session.ContactID != "" {
+		if c, cErr := h.st.GetContact(r.Context(), session.ContactID); cErr == nil {
+			contact = contactResp{
+				FirstName: c.FirstName,
+				LastName:  c.LastName,
+				Email:     c.Email,
+				Phone:     c.Phone,
+			}
+		}
+	}
+
+	bookings, err := h.st.ListBookingsForSession(r.Context(), sessionID)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	lines := make([]sessionBookingResp, len(bookings))
+	for i, b := range bookings {
+		lines[i] = sessionBookingResp{
+			ID:    b.ID,
+			Start: b.StartAt.Format(time.RFC3339),
+			End:   b.EndAt.Format(time.RFC3339),
+			State: string(b.State),
+		}
+	}
+
+	writeJSON(w, http.StatusOK, sessionDetailResp{
+		ID:    sessionID,
+		State: string(session.State),
+		Service: serviceResp{
+			ID:              svc.ID,
+			Name:            svc.Name,
+			DurationMinutes: svc.DurationMinutes,
+			Price:           svc.Price,
+		},
+		Contact:  contact,
+		Bookings: lines,
+	})
+}
+
+// Reschedule handles POST /api/v1/sessions/{id}/reschedule?session_token=
+// Body: {"slots":["RFC3339",...],"timezone":"Europe/Berlin"}
+// The slots slice must contain exactly one entry per non-cancelled booking
+// in the session, ordered by StartAt ascending.
+func (h *SessionHandler) Reschedule(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.PathValue("id")
+	if !h.verifySessionToken(w, r, sessionID) {
+		return
+	}
+
+	var req sessionRescheduleReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Slots) == 0 {
+		http.Error(w, "invalid request body: slots required", http.StatusBadRequest)
+		return
+	}
+
+	session, err := h.st.GetSession(r.Context(), sessionID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	svc, err := h.st.GetService(r.Context(), session.ServiceID)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	bookings, err := h.st.ListBookingsForSession(r.Context(), sessionID)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+	var active []*store.Booking
+	for _, b := range bookings {
+		if b.State != store.BookingStateCancelled {
+			active = append(active, b)
+		}
+	}
+	if len(req.Slots) != len(active) {
+		http.Error(w, fmt.Sprintf("slot count (%d) must match active booking count (%d)", len(req.Slots), len(active)), http.StatusBadRequest)
+		return
+	}
+
+	now := time.Now().UTC()
+	for i, b := range active {
+		newStart, parseErr := time.Parse(time.RFC3339, req.Slots[i])
+		if parseErr != nil {
+			http.Error(w, fmt.Sprintf("invalid slot %q: %v", req.Slots[i], parseErr), http.StatusBadRequest)
+			return
+		}
+		newStart = newStart.UTC()
+		newEnd := newStart.Add(time.Duration(svc.DurationMinutes) * time.Minute)
+
+		slots, availErr := h.avail.ListAvailable(r.Context(), session.ServiceID, newStart)
+		if availErr != nil {
+			klog.Errorf("sessions.Reschedule ListAvailable booking %s: %v", b.ID, availErr)
+			http.Error(w, "could not verify availability", http.StatusInternalServerError)
+			return
+		}
+		var staffID string
+		for _, s := range slots {
+			if s.StartAt.Equal(newStart) {
+				staffID = s.UserID
+				break
+			}
+		}
+		if staffID == "" {
+			http.Error(w, fmt.Sprintf("slot %s is not available", req.Slots[i]), http.StatusConflict)
+			return
+		}
+
+		b.StartAt = newStart
+		b.EndAt = newEnd
+		b.UserID = staffID
+		b.Sequence++
+		b.UpdatedAt = now
+		if updateErr := h.st.UpdateBooking(r.Context(), b); updateErr != nil {
+			if errors.Is(updateErr, store.ErrConflict) {
+				http.Error(w, fmt.Sprintf("slot %s is already booked", req.Slots[i]), http.StatusConflict)
+				return
+			}
+			klog.Errorf("sessions.Reschedule UpdateBooking %s: %v", b.ID, updateErr)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		_ = h.st.UpdateContactLastAppointment(r.Context(), b.ContactID, newEnd)
+	}
+
+	// Send one change-summary email per rescheduled booking.
+	if h.sender != nil && session.ContactID != "" {
+		contact, cErr := h.st.GetContact(r.Context(), session.ContactID)
+		if cErr == nil {
+			tzName := req.Timezone
+			if tzName == "" {
+				tzName = contact.Timezone
+			} else if tzName != contact.Timezone {
+				contact.Timezone = tzName
+				_ = h.st.UpdateContact(r.Context(), contact)
+			}
+			customerLoc := parseTimezone(tzName)
+			sessionLink := h.sessionManageLink(r.Context(), sessionID)
+			for _, b := range active {
+				data := email.ChangeSummaryData{
+					Contact:    contact,
+					Booking:    inTZSingle(b, customerLoc),
+					ManageLink: sessionLink,
+					SentAt:     now,
+				}
+				emailCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+				defer cancel()
+				if sendErr := h.sender.SendChangeSummary(emailCtx, data); sendErr != nil {
+					klog.Errorf("sessions.Reschedule SendChangeSummary booking %s: %v", b.ID, sendErr)
+				}
+			}
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// Cancel handles DELETE /api/v1/sessions/{id}?session_token=
+// Cancels all non-cancelled bookings in the session and sends one
+// cancellation e-mail.
+func (h *SessionHandler) Cancel(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.PathValue("id")
+	if !h.verifySessionToken(w, r, sessionID) {
+		return
+	}
+
+	session, err := h.st.GetSession(r.Context(), sessionID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	settings, err := h.st.GetSettings(r.Context())
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	bookings, err := h.st.ListBookingsForSession(r.Context(), sessionID)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	now := time.Now().UTC()
+	var cancelled []*store.Booking
+	for _, b := range bookings {
+		if b.State == store.BookingStateCancelled {
+			continue
+		}
+		cb, cancelErr := h.bookingSvc.CancelBookingByCustomer(r.Context(), b.ID, settings.NoShowDeadlineHours)
+		if cancelErr != nil {
+			klog.Errorf("sessions.Cancel CancelBookingByCustomer %s: %v", b.ID, cancelErr)
+			continue
+		}
+		cancelled = append(cancelled, cb)
+	}
+
+	// Send one cancellation e-mail representing the whole session.
+	if h.sender != nil && session.ContactID != "" && len(cancelled) > 0 {
+		contact, cErr := h.st.GetContact(r.Context(), session.ContactID)
+		if cErr == nil {
+			tzName := r.URL.Query().Get("tz")
+			if tzName == "" {
+				tzName = contact.Timezone
+			}
+			customerLoc := parseTimezone(tzName)
+			data := email.CancellationData{
+				Contact: contact,
+				Booking: inTZSingle(cancelled[0], customerLoc),
+				SentAt:  now,
+			}
+			emailCtx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
+			if sendErr := h.sender.SendCancellation(emailCtx, data); sendErr != nil {
+				klog.Errorf("sessions.Cancel SendCancellation: %v", sendErr)
+			}
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

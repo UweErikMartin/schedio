@@ -49,21 +49,12 @@ const loadAvailability = async (year, month, serviceId) => {
     const endpoint = getAvailabilityEndpoint();
     const separator = endpoint.includes("?") ? "&" : "?";
     const serviceParam = serviceId ? `&service_id=${encodeURIComponent(serviceId)}` : "";
-    const response = await fetch(`${endpoint}${separator}month=${encodeURIComponent(monthKey)}${serviceParam}`);
+    const response = await fetch(`${endpoint}${separator}period=${encodeURIComponent(monthKey)}${serviceParam}`);
     if (!response.ok) {
         throw new Error("Verfügbarkeit konnte nicht geladen werden");
     }
     const payload = await response.json();
-    const monthDates = payload?.months?.[monthKey] && typeof payload.months[monthKey] === "object"
-        ? payload.months[monthKey]
-        : {};
-
-    const dates = Object.keys(monthDates).sort();
-    return {
-        month: monthKey,
-        dates,
-        timeSlots: monthDates
-    };
+    return Array.isArray(payload) ? payload : [];
 };
 
 const preloadAvailabilityForCurrentMonth = () => {
@@ -89,7 +80,7 @@ const preloadAvailabilityForCurrentMonth = () => {
         .then((availability) => {
         preloadedAvailabilityResult = availability;
         if ((activeYear === 0 && activeMonth === 0) || (activeYear === year && activeMonth === month)) {
-            datePicker.setAttribute("available-dates", JSON.stringify(availability));
+            datePicker.setAttribute("available", JSON.stringify(availability));
         }
         return availability;
         })
@@ -242,7 +233,7 @@ const fetchAndApplyAvailability = async (eventDetail) => {
         if (!availability) {
             availability = await loadAvailability(year, month, activeServiceId);
         }
-        datePicker.setAttribute("available-dates", JSON.stringify(availability));
+        datePicker.setAttribute("available", JSON.stringify(availability));
     } catch (error) {
         console.error("failed to fetch available dates from backend", error);
     }

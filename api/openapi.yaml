@@ -134,9 +134,9 @@ paths:
       responses:
         '200':
           description: |
-            Availability map. Days with no slots are omitted. The outer key is
-            always a month string (`YYYY-MM`); for a single-day query only the
-            month containing that day is present with exactly one inner key.
+            Flat list of available start times. Slots are RFC 3339 UTC timestamps
+            sorted chronologically. Empty array means no availability in the
+            requested period.
           content:
             application/json:
               schema:
@@ -145,16 +145,18 @@ paths:
                 month:
                   summary: Month query result
                   value:
-                    months:
-                      "2026-03":
-                        "2026-03-15": ["2026-03-15T09:00:00Z", "2026-03-15T09:15:00Z", "2026-03-15T09:30:00Z", "2026-03-15T10:00:00Z"]
-                        "2026-03-16": ["2026-03-16T10:00:00Z", "2026-03-16T10:30:00Z"]
+                    - "2026-03-15T09:00:00Z"
+                    - "2026-03-15T09:15:00Z"
+                    - "2026-03-15T09:30:00Z"
+                    - "2026-03-15T10:00:00Z"
+                    - "2026-03-16T10:00:00Z"
+                    - "2026-03-16T10:30:00Z"
                 day:
                   summary: Single-day query result
                   value:
-                    months:
-                      "2026-03":
-                        "2026-03-15": ["2026-03-15T09:00:00Z", "2026-03-15T09:15:00Z", "2026-03-15T09:30:00Z"]
+                    - "2026-03-15T09:00:00Z"
+                    - "2026-03-15T09:15:00Z"
+                    - "2026-03-15T09:30:00Z"
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -1088,30 +1090,15 @@ components:
           default: 0
 
     AvailabilityResponse:
-      type: object
+      type: array
       description: |
-        Availability envelope returned by `GET /api/v1/availability`.
-        The outer key is always a month string (`YYYY-MM`). For a month query
-        all days with available slots appear as inner keys; for a day query
-        only the one requested day is present.
-      required: [months]
-      properties:
-        months:
-          type: object
-          description: |
-            Map of month (`YYYY-MM`) → day map.
-          additionalProperties:
-            type: object
-            description: |
-              Map of ISO-8601 date (`YYYY-MM-DD`) → list of available start
-              times as RFC 3339 UTC timestamps. Days with no available slots
-              are omitted entirely.
-            additionalProperties:
-              type: array
-              items:
-                type: string
-                format: date-time
-                example: '2026-03-15T09:15:00Z'
+        Flat list of available start times returned by `GET /api/v1/availability`.
+        Items are RFC 3339 UTC timestamps sorted chronologically. An empty array
+        means no slots are available in the requested period.
+      items:
+        type: string
+        format: date-time
+        example: '2026-03-15T09:15:00Z'
 
     TimeSlot:
       type: object

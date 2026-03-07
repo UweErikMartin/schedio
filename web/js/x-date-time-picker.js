@@ -58,6 +58,8 @@ const STYLES = `
     box-sizing: border-box;
   }
 
+  [hidden] { display: none !important; }
+
   /* -- Date summary bar (mobile-first: stacked) ---- */
   .date-summary {
     display: grid;
@@ -106,6 +108,30 @@ const STYLES = `
     text-decoration: line-through;
   }
 
+  :host([state="new"]) .date-summary {
+    background: #eff6ff;
+    border-style: dashed;
+    border-color: var(--color-primary);
+  }
+  :host([state="new"]) .date-summary:hover {
+    border-color: var(--color-primary-hover);
+  }
+
+  /* -- Disabled state -- */
+  :host([disabled]) .date-summary {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+    color: var(--color-muted);
+    cursor: default;
+    box-shadow: none;
+  }
+  :host([disabled]) .date-summary:hover {
+    border-color: #d1d5db;
+  }
+  :host([disabled]) .selected-date-label {
+    color: var(--color-muted);
+  }
+
   .selected-date-wrap {
     min-width: 0;
   }
@@ -120,12 +146,12 @@ const STYLES = `
     align-items: center;
   }
 
-  .date-actions .select-time-button {
+  .date-actions .inline-button {
     flex: 0 0 auto;
   }
 
   /* -- Interactive element resets -- */
-  .select-time-button,
+  .inline-button,
   .calendar-nav,
   .calendar-day,
   .time-option {
@@ -136,7 +162,7 @@ const STYLES = `
   }
 
   /* -- Select-time button (icon) -- */
-  .select-time-button {
+  .inline-button {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     background: var(--color-surface);
@@ -152,13 +178,27 @@ const STYLES = `
     transition: border-color 0.15s;
   }
 
-  .select-time-button:hover:not(:disabled) {
+  .inline-button:hover:not(:disabled) {
     border-color: var(--color-primary);
   }
 
-  .select-time-button:disabled {
+  .inline-button:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+  }
+
+  #actions-button svg,
+  #select-time-button svg {
+    display: block;
+  }
+
+  :host([action="add"]) #actions-button svg,
+  :host([action="confirm"]) #actions-button svg {
+    color: var(--color-success);
+  }
+
+  :host([action="delete"]) #actions-button svg {
+    color: var(--color-danger);
   }
 
   /* -- Dropdown panels -- */
@@ -315,11 +355,17 @@ const STYLES = `
 `;
 
 /** Bundled translations -- English (default) and German. */
+/** Inline SVG icons — pixel-perfect centering regardless of font metrics. */
+const SVG_CLOCK = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
+const SVG_ADD   = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+const SVG_DELETE = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+const SVG_CONFIRM = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+
 const TRANSLATIONS = {
   en: {
     'loading.initial':      'Next available date is loading...',
     'loading.availability': 'Available dates are loading...',
-    'no.date.selected':     'No available date selected',
+    'no.date.selected':     'Please select a date and time',
     'date.prefix.selected': 'Selected date',
     'date.prefix.earliest': 'Earliest appointment',
     'time.suffix':          "o'clock",
@@ -328,11 +374,14 @@ const TRANSLATIONS = {
     'nav.next.month':       'Next month',
     'nav.prev.month':       'Previous month',
     'no.slots':             'No time slots available.',
+    'btn.add.appointment':    'Add appointment',
+    'btn.delete.appointment': 'Delete appointment',
+    'btn.confirm.appointment':  'Confirm appointment',
   },
   de: {
     'loading.initial':      'Nächster verfuegbarer Termin wird geladen...',
     'loading.availability': 'Verfügbare Termine werden geladen...',
-    'no.date.selected':     'Kein verfügbarer Termin ausgewählt',
+    'no.date.selected':     'Bitte wählen Sie ein Datum und eine Uhrzeit',
     'date.prefix.selected': 'Ausgewählter Termin',
     'date.prefix.earliest': 'Frühester Termin',
     'time.suffix':          'Uhr',
@@ -341,6 +390,9 @@ const TRANSLATIONS = {
     'nav.next.month':       'Nächster Monat',
     'nav.prev.month':       'Vorheriger Monat',
     'no.slots':             'Keine Zeitslots verfügbar.',
+    'btn.add.appointment':    'Termin hinzufügen',
+    'btn.delete.appointment': 'Termin löschen',
+    'btn.confirm.appointment':  'Termin bestätigen',
   },
 };
 
@@ -348,22 +400,28 @@ const TRANSLATIONS = {
  * XDateTimePicker -- Calendar + time-slot picker web component.
  *
  * Attributes:
- *   available-dates (string)  -- JSON-serialised AvailabilityAttribute set by the parent
- *   selected-time   (string)  -- UTC ISO 8601 datetime to pre-select programmatically
+ *   available     (string)  -- JSON array of UTC ISO 8601 datetime strings; groups slots by
+ *                              date automatically and replaces all current availability.
+ *                              e.g. `["2026-03-09T09:00:00Z","2026-03-09T11:00:00Z"]`
+ *   selected     (string)  -- UTC ISO 8601 datetime to pre-select programmatically
  *   locale          (string)  -- BCP 47 tag (falls back to document.documentElement.lang,
  *                                then navigator.language)
  *   disabled        (boolean) -- disables all interactive elements when present
- *   min-date        (string)  -- ISO 8601 date YYYY-MM-DD; no days before this selectable
+ *   action      (string)  -- icon and label for the action button: 'add' (default), 'delete', or 'confirm'.
+ *                             When absent the button is hidden; when present the button is shown and
+ *                             automatically disabled until a date-time is selected.
  *
  * Properties:
- *   value    (string|null) -- currently selected UTC ISO 8601 datetime, or null
- *   disabled (boolean)     -- reflects the `disabled` boolean attribute
+ *   value      (string|null) -- currently selected UTC ISO 8601 datetime, or null
+ *   disabled   (boolean)     -- reflects the `disabled` boolean attribute
+ *   action     (string)      -- reflects the `action` attribute
  *
  * Events (all: bubbles=true, composed=true):
- *   x-date-time-picker-initialized    { year, month, selectedDate }
- *   x-date-time-picker-date-selected  { date, previousDate, timeSlots,
- *                                       hasUserChangedDate, year, month }
- *   x-date-time-picker-month-selected { year, month, previousYear, previousMonth }
+ *   x-date-time-picker-initialized        { year, month, selectedDate }
+ *   x-date-time-picker-date-selected      { date, previousDate, timeSlots,
+ *                                           hasUserChangedDate, year, month }
+ *   x-date-time-picker-month-selected     { year, month, previousYear, previousMonth }
+ *   x-date-time-picker-add-delete-pressed { date, selectedTime }
  */
 export class XDateTimePicker extends HTMLElement {
   // -- Private state -------------------------------------------------
@@ -402,7 +460,7 @@ export class XDateTimePicker extends HTMLElement {
   }
 
   static get observedAttributes() {
-    return ['available-dates', 'selected-time', 'locale', 'disabled', 'min-date', 'order-number', 'state', 'locale-path'];
+    return ['available', 'selected', 'locale', 'disabled', 'order-number', 'state', 'locale-path', 'action'];
   }
 
   // -- Lifecycle -----------------------------------------------------
@@ -420,24 +478,44 @@ export class XDateTimePicker extends HTMLElement {
       case 'locale':
         this.#loadTranslations().then(() => this.#applyLocalizedTextToUI());
         break;
-      case 'available-dates':
-        this.#onAvailabilityAttribute(newValue);
+      case 'available':
+        this.#onAvailableAttribute(newValue);
         break;
-      case 'selected-time':
+      case 'selected':
         this.#selectedTime = typeof newValue === 'string' ? newValue.trim() : '';
+        if (this.#selectedTime) {
+          // Extract the date part so the label renders even without availability data
+          const datePart = this.#selectedTime.substring(0, 10);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) this.#selectedDate = datePart;
+        } else if (!this.#hasUserChangedDate) {
+          // Only clear the date if the user has not actively selected one
+          this.#selectedDate = '';
+        }
         if (this.#dateLabel) this.#updateSelectedDateLabel();
         break;
       case 'disabled':
         this.#syncDisabledState();
         break;
-      case 'min-date':
-        if (this.#grid) this.#renderMonth();
-        break;
       case 'order-number':
         if (this.#dateLabel) this.#updateSelectedDateLabel();
         break;
+      case 'action':
+        this.#updateActionsButton();
+        break;
       case 'state':
-        // Handled purely by CSS :host([state=...]) selectors — no JS needed.
+        if (newValue === 'new') {
+          this.#selectedDate = '';
+          this.#selectedTime = '';
+          this.#hasUserChangedDate = false;
+          if (this.#dateLabel) {
+            this.#updateSelectedDateLabel();
+            if (this.#calendar) this.#setCalendarExpanded(false);
+            this.#setTimeListExpanded(false);
+            for (const btn of this.#grid?.querySelectorAll('button.calendar-day') ?? []) {
+              btn.classList.remove('selected');
+            }
+          }
+        }
         break;
     }
   }
@@ -462,12 +540,28 @@ export class XDateTimePicker extends HTMLElement {
       || 'en';
   }
 
+  get available() { return this.getAttribute('available'); }
+  set available(v) {
+    if (v !== null && v !== undefined) this.setAttribute('available', typeof v === 'string' ? v : JSON.stringify(v));
+    else this.removeAttribute('available');
+  }
+
   get localePath() {
     return this.getAttribute('locale-path') || '/x-date-time-picker/i18n';
   }
   set localePath(v) {
     if (v) this.setAttribute('locale-path', v);
     else this.removeAttribute('locale-path');
+  }
+
+  /** Returns 'add' (default), 'delete', or 'confirm'. */
+  get action() {
+    const v = this.getAttribute('action');
+    return (v === 'delete' || v === 'confirm') ? v : 'add';
+  }
+  set action(v) {
+    if (v === 'add' || v === 'delete' || v === 'confirm') this.setAttribute('action', v);
+    else this.removeAttribute('action');
   }
 
   get disabled() { return this.hasAttribute('disabled'); }
@@ -481,7 +575,7 @@ export class XDateTimePicker extends HTMLElement {
 
   get state() { return this.getAttribute('state') ?? 'none'; }
   set state(v) {
-    const valid = ['none', 'tentative', 'confirmed', 'cancelled'];
+    const valid = ['none', 'tentative', 'confirmed', 'cancelled', 'new'];
     const next  = valid.includes(v) ? v : 'none';
     if (next === 'none') this.removeAttribute('state');
     else this.setAttribute('state', next);
@@ -530,13 +624,15 @@ export class XDateTimePicker extends HTMLElement {
           </span>
         </div>
         <div class="date-actions" id="date-actions">
-          <button class="select-time-button" type="button" id="select-time-button"
-                  aria-expanded="false"
+          <button class="inline-button" type="button" id="select-time-button"
                   aria-label="${this.#tr('btn.select.time')}"
                   title="${this.#tr('btn.select.time')}"
-                  ${this.disabled ? 'disabled aria-disabled="true"' : ''}>
-            🕒
-          </button>
+                  ${this.disabled ? 'disabled aria-disabled="true"' : ''}>${SVG_CLOCK}</button>
+          <button class="inline-button" type="button" id="actions-button"
+                  aria-label="${ this.action === 'delete' ? this.#tr('btn.delete.appointment') : this.action === 'confirm' ? this.#tr('btn.confirm.appointment') : this.#tr('btn.add.appointment') }"
+                  title="${ this.action === 'delete' ? this.#tr('btn.delete.appointment') : this.action === 'confirm' ? this.#tr('btn.confirm.appointment') : this.#tr('btn.add.appointment') }"
+                  ${this.disabled ? 'disabled aria-disabled="true"' : ''}
+                  ${!this.hasAttribute('action') ? 'hidden' : ''}>${ this.action === 'delete' ? SVG_DELETE : this.action === 'confirm' ? SVG_CONFIRM : SVG_ADD }</button>
         </div>
       </div>
 
@@ -580,7 +676,7 @@ export class XDateTimePicker extends HTMLElement {
     const now = new Date();
     this.#activeYear  = now.getFullYear();
     this.#activeMonth = now.getMonth() + 1;
-    this.#selectedTime = this.getAttribute('selected-time')?.trim() ?? '';
+    this.#selectedTime = this.getAttribute('selected')?.trim() ?? '';
 
     this.#monthLabelFormatter   = new Intl.DateTimeFormat(this.locale, { month: 'long', year: 'numeric' });
     this.#selectedDateFormatter = new Intl.DateTimeFormat(this.locale, {
@@ -599,9 +695,20 @@ export class XDateTimePicker extends HTMLElement {
       this.#setTimeListExpanded(this.#timeList.hidden);
     });
 
+    // Add/delete button dispatches an event
+    this.shadowRoot.getElementById('actions-button')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.#dispatch('x-date-time-picker-add-delete-pressed', {
+        date:         this.#selectedDate || null,
+        selectedTime: this.#selectedTime || null,
+      });
+    });
+
     // Click on summary bar (outside action buttons) toggles calendar
     this.#dateSummary.addEventListener('click', (e) => {
       if (e.target.closest('.date-actions')) return;
+      if (this.disabled) return;
       e.preventDefault();
       this.#setCalendarExpanded(this.#calendar.hidden);
     });
@@ -610,7 +717,7 @@ export class XDateTimePicker extends HTMLElement {
     this.#dateSummary.addEventListener('keydown', (e) => {
       if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('button')) {
         e.preventDefault();
-        this.#setCalendarExpanded(this.#calendar.hidden);
+        if (!this.disabled) this.#setCalendarExpanded(this.#calendar.hidden);
       }
       if (e.key === 'Escape') {
         this.#setCalendarExpanded(false);
@@ -665,61 +772,44 @@ export class XDateTimePicker extends HTMLElement {
 
   // -- Private: availability attribute handling ----------------------
 
-  #onAvailabilityAttribute(newValue) {
-    if (!newValue) return;
-    try {
-      const payload    = JSON.parse(newValue);
-      const normalized = this.#normalizeAvailabilityPayload(payload);
-      if (!normalized) return;
+  #onAvailableAttribute(newValue) {
+    // Flat JSON array of UTC ISO 8601 strings → sort chronologically, then group
+    // by month and local calendar date. Index 0 is always the earliest slot.
+    this.#availableDatesByMonth.clear();
 
-      this.#availableDatesByMonth.set(normalized.month, normalized);
+    if (newValue) {
+      let rawSlots;
+      try { rawSlots = JSON.parse(newValue); } catch { rawSlots = null; }
 
-      if (this.#toMonthKey(this.#activeYear, this.#activeMonth) === normalized.month) {
-        this.#applyAvailabilityForActiveMonth();
-      }
-    } catch {
-      // Invalid JSON -- ignore silently
-    }
-  }
+      if (Array.isArray(rawSlots)) {
+        // Parse, validate and sort by epoch time ascending
+        const valid = rawSlots
+          .filter(r => typeof r === 'string')
+          .map(r => ({ raw: r.trim(), t: new Date(r.trim()).getTime() }))
+          .filter(({ t }) => Number.isFinite(t))
+          .sort((a, b) => a.t - b.t);
 
-  #normalizeAvailabilityPayload(payload) {
-    if (!payload || typeof payload !== 'object') return null;
-    const month = typeof payload.month === 'string' ? payload.month : '';
-    if (!month) return null;
-
-    const rawTimeSlots = (payload.timeSlots && typeof payload.timeSlots === 'object')
-      ? payload.timeSlots : {};
-    const normalizedTimeSlots = {};
-
-    for (const [sourceDateKey, slotValues] of Object.entries(rawTimeSlots)) {
-      if (!Array.isArray(slotValues)) continue;
-      for (const rawSlot of slotValues) {
-        if (typeof rawSlot !== 'string') continue;
-        const trimmedSlot = rawSlot.trim();
-        if (!trimmedSlot) continue;
-
-        const parsedDate = new Date(trimmedSlot);
-        if (Number.isFinite(parsedDate.getTime())) {
-          const localDateKey = this.#toDateKey(
-            parsedDate.getFullYear(),
-            parsedDate.getMonth() + 1,
-            parsedDate.getDate(),
-          );
-          normalizedTimeSlots[localDateKey] ??= [];
-          normalizedTimeSlots[localDateKey].push(trimmedSlot);
-        } else {
-          normalizedTimeSlots[sourceDateKey] ??= [];
-          normalizedTimeSlots[sourceDateKey].push(trimmedSlot);
+        for (const { raw, t } of valid) {
+          const d        = new Date(t);
+          const monthKey = this.#toMonthKey(d.getFullYear(), d.getMonth() + 1);
+          const dateKey  = this.#toDateKey(d.getFullYear(), d.getMonth() + 1, d.getDate());
+          const entry    = this.#availableDatesByMonth.get(monthKey)
+            ?? { month: monthKey, dates: [], timeSlots: {} };
+          (entry.timeSlots[dateKey] ??= []).push(raw);
+          this.#availableDatesByMonth.set(monthKey, entry);
+        }
+        // Deduplicate slots (already in chronological order) and build dates list
+        for (const entry of this.#availableDatesByMonth.values()) {
+          for (const dateKey of Object.keys(entry.timeSlots)) {
+            entry.timeSlots[dateKey] = [...new Set(entry.timeSlots[dateKey])];
+          }
+          entry.dates = Object.keys(entry.timeSlots).sort();
         }
       }
     }
 
-    const normalizedDates = Object.keys(normalizedTimeSlots).sort();
-    for (const dateKey of normalizedDates) {
-      normalizedTimeSlots[dateKey] = [...new Set(normalizedTimeSlots[dateKey])].sort();
-    }
-
-    return { month, dates: normalizedDates, timeSlots: normalizedTimeSlots };
+    this.#updateMonthNavigationState();
+    if (this.#grid) this.#applyAvailabilityForActiveMonth();
   }
 
   // -- Private: calendar rendering ----------------------------------
@@ -825,11 +915,13 @@ export class XDateTimePicker extends HTMLElement {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
+        this.#hasUserChangedDate = true;
         this.#selectedTime = slot;
-        this.setAttribute('selected-time', slot);
+        this.setAttribute('selected', slot);
         this.#updateSelectedDateLabel();
         this.#renderTimeOptions();
         this.#setTimeListExpanded(false);
+        this.#updateActionsButton();
       });
 
       this.#timeOptions.appendChild(btn);
@@ -848,6 +940,7 @@ export class XDateTimePicker extends HTMLElement {
     }
 
     this.#calendar.hidden = !expanded;
+    this.#updateActionsButton();
 
     if (expanded) {
       requestAnimationFrame(() => this.#ensurePanelInViewport(this.#calendar));
@@ -869,6 +962,7 @@ export class XDateTimePicker extends HTMLElement {
 
     this.#timeList.hidden = !expanded;
     this.#selectTimeButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    this.#updateActionsButton();
 
     if (expanded) {
       requestAnimationFrame(() => this.#ensurePanelInViewport(this.#timeList));
@@ -882,7 +976,7 @@ export class XDateTimePicker extends HTMLElement {
     if (suppress) return;
     const allClosed = this.#calendar.hidden && this.#timeList.hidden;
     if (allClosed && Number.isFinite(this.#dropdownScrollRestoreY)) {
-      window.scrollTo({ top: this.#dropdownScrollRestoreY, behavior: 'smooth' });
+      try { window.scrollTo({ top: this.#dropdownScrollRestoreY, behavior: 'smooth' }); } catch { /* not implemented in test env */ }
     }
     if (allClosed) {
       this.#isDropdownSessionActive = false;
@@ -902,7 +996,7 @@ export class XDateTimePicker extends HTMLElement {
       centerY - vpH / 2 - vpTop,
       document.documentElement.scrollHeight - vpH,
     ));
-    window.scrollTo({ top: target, behavior: 'smooth' });
+    try { window.scrollTo({ top: target, behavior: 'smooth' }); } catch { /* not implemented in test env */ }
   }
 
   #syncDisabledState() {
@@ -916,6 +1010,29 @@ export class XDateTimePicker extends HTMLElement {
       this.#selectTimeButton.disabled = false;
       this.#selectTimeButton.removeAttribute('aria-disabled');
     }
+    this.#updateActionsButton();
+  }
+
+  #updateActionsButton() {
+    const btn = this.shadowRoot?.getElementById('actions-button');
+    if (!btn) return;
+    const type = this.action; // 'add' | 'delete' | 'confirm'
+
+    btn.hidden = !this.hasAttribute('action');
+
+    const dropdownOpen = (this.#calendar && !this.#calendar.hidden) ||
+                         (this.#timeList  && !this.#timeList.hidden);
+    const isDisabled = this.disabled || !this.value || dropdownOpen;
+    btn.disabled = isDisabled;
+    if (isDisabled) btn.setAttribute('aria-disabled', 'true');
+    else btn.removeAttribute('aria-disabled');
+
+    const label = type === 'delete' ? this.#tr('btn.delete.appointment')
+                : type === 'confirm' ? this.#tr('btn.confirm.appointment')
+                : this.#tr('btn.add.appointment');
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+    btn.innerHTML = type === 'delete' ? SVG_DELETE : type === 'confirm' ? SVG_CONFIRM : SVG_ADD;
   }
 
   // -- Private: wrap-state detection --------------------------------
@@ -956,6 +1073,10 @@ export class XDateTimePicker extends HTMLElement {
   }
 
   #navigateNextMonth() {
+    if (!this.#canNavigateToNextMonth()) {
+      this.#updateMonthNavigationState();
+      return;
+    }
     const prevYear = this.#activeYear, prevMonth = this.#activeMonth;
     this.#activeMonth += 1;
     if (this.#activeMonth > 12) { this.#activeMonth = 1; this.#activeYear += 1; }
@@ -966,6 +1087,20 @@ export class XDateTimePicker extends HTMLElement {
     });
   }
 
+  #canNavigateToNextMonth() {
+    // When no availability data is loaded, navigation is unrestricted.
+    if (this.#availableDatesByMonth.size === 0) return true;
+    // Compute the month key that would result from navigating forward.
+    let nextYear = this.#activeYear, nextMonth = this.#activeMonth + 1;
+    if (nextMonth > 12) { nextMonth = 1; nextYear += 1; }
+    const nextKey = this.#toMonthKey(nextYear, nextMonth);
+    // Allow navigation only when the next month (or any later one) has availability.
+    for (const key of this.#availableDatesByMonth.keys()) {
+      if (key >= nextKey) return true;
+    }
+    return false;
+  }
+
   #canNavigateToPreviousMonth() {
     const now = new Date();
     if (this.#activeYear !== now.getFullYear()) return this.#activeYear > now.getFullYear();
@@ -973,8 +1108,14 @@ export class XDateTimePicker extends HTMLElement {
   }
 
   #updateMonthNavigationState() {
-    if (!this.#prevButton) return;
-    this.#prevButton.disabled = !this.#canNavigateToPreviousMonth();
+    if (this.#prevButton) {
+      this.#prevButton.disabled = !this.#canNavigateToPreviousMonth();
+      this.#prevButton.setAttribute('aria-disabled', this.#prevButton.disabled ? 'true' : 'false');
+    }
+    if (this.#nextButton) {
+      this.#nextButton.disabled = !this.#canNavigateToNextMonth();
+      this.#nextButton.setAttribute('aria-disabled', this.#nextButton.disabled ? 'true' : 'false');
+    }
   }
 
   // -- Private: date selection --------------------------------------
@@ -999,6 +1140,7 @@ export class XDateTimePicker extends HTMLElement {
         month:              this.#activeMonth,
       });
     }
+    this.#updateActionsButton();
   }
 
   #updateSelectedDateLabel() {
@@ -1010,9 +1152,10 @@ export class XDateTimePicker extends HTMLElement {
     // Parse as UTC midnight so no timezone offset shifts the displayed date
     const parsed      = new Date(`${this.#selectedDate}T00:00:00Z`);
     const orderNumber = this.getAttribute('order-number');
-    const prefix      = (orderNumber && this.#hasUserChangedDate)
+    const isExternallySelected = !!this.getAttribute('selected');
+    const prefix      = (orderNumber && (this.#hasUserChangedDate || isExternallySelected))
       ? orderNumber
-      : this.#hasUserChangedDate
+      : (this.#hasUserChangedDate || isExternallySelected)
         ? this.#tr('date.prefix.selected')
         : this.#tr('date.prefix.earliest');
     const displayed = this.#getDisplayedTimeForSelectedDate();
@@ -1029,15 +1172,15 @@ export class XDateTimePicker extends HTMLElement {
     if (!this.#grid) return;
     const monthKey     = this.#toMonthKey(this.#activeYear, this.#activeMonth);
     const availability = this.#availableDatesByMonth.get(monthKey);
-    const available    = new Set(Array.isArray(availability?.dates) ? availability.dates : []);
-    const todayKey     = this.#getTodayDateKey();
-    const minDate      = this.getAttribute('min-date') ?? '';
+    const available = new Set(Array.isArray(availability?.dates) ? availability.dates : []);
+    const nowMs     = Date.now();
 
     let firstAvailable = '';
     for (const btn of this.#grid.querySelectorAll('button.calendar-day')) {
-      const dateKey  = btn.dataset.date ?? '';
-      const afterMin = !minDate || dateKey >= minDate;
-      const enabled  = available.has(dateKey) && dateKey >= todayKey && afterMin;
+      const dateKey = btn.dataset.date ?? '';
+      const slots   = this.#getTimeSlotsForDate(dateKey);
+      const enabled = available.has(dateKey)
+        && (slots.length === 0 || slots.some(s => new Date(s).getTime() >= nowMs));
       btn.disabled = !enabled;
       btn.setAttribute('aria-disabled', enabled ? 'false' : 'true');
       btn.classList.toggle('disabled', !enabled);
@@ -1049,14 +1192,23 @@ export class XDateTimePicker extends HTMLElement {
       return;
     }
 
-    if (this.#selectedDate
-        && this.#selectedDate.startsWith(`${monthKey}-`)
-        && available.has(this.#selectedDate)) {
-      this.#setSelectedDate(this.#selectedDate);
-    } else if (firstAvailable) {
-      this.#setSelectedDate(firstAvailable);
+    if (this.#hasUserChangedDate) {
+      // User made an active choice — keep it if still valid, else fall back.
+      if (this.#selectedDate
+          && this.#selectedDate.startsWith(`${monthKey}-`)
+          && available.has(this.#selectedDate)) {
+        this.#setSelectedDate(this.#selectedDate);
+      } else if (firstAvailable) {
+        this.#setSelectedDate(firstAvailable);
+      } else {
+        this.#setSelectedDate('');
+      }
     } else {
-      this.#setSelectedDate('');
+      if (firstAvailable) {
+        this.#setSelectedDate(firstAvailable);
+      } else {
+        this.#setSelectedDate('');
+      }
     }
 
 
@@ -1065,12 +1217,13 @@ export class XDateTimePicker extends HTMLElement {
   // -- Private: initialization --------------------------------------
 
   async #initialize() {
-    if (this.#selectTimeButton) this.#selectTimeButton.disabled = false;
+    if (this.#selectTimeButton && !this.disabled) this.#selectTimeButton.disabled = false;
     const now = new Date();
     this.#activeYear  = now.getFullYear();
     this.#activeMonth = now.getMonth() + 1;
     await this.#renderMonth();
     this.#setCalendarExpanded(false);
+    this.#syncDisabledState();
 
     if (!this.#hasEmittedInitializedEvent) {
       this.#dispatch('x-date-time-picker-initialized', {
@@ -1094,7 +1247,7 @@ export class XDateTimePicker extends HTMLElement {
 
   #getDisplayedTimeForSelectedDate() {
     const slots = this.#getTimeSlotsForDate(this.#selectedDate);
-    if (this.#selectedTime && slots.includes(this.#selectedTime)) return this.#selectedTime;
+    if (this.#selectedTime && (slots.includes(this.#selectedTime) || slots.length === 0)) return this.#selectedTime;
     return slots[0] ?? '';
   }
 

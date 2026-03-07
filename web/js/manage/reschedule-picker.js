@@ -233,15 +233,8 @@ class XReschedulePicker extends HTMLElement {
       );
       if (!res.ok) return;
       const payload = await res.json();
-      const monthDates =
-        payload?.months?.[monthKey] && typeof payload.months[monthKey] === 'object'
-          ? payload.months[monthKey]
-          : {};
-      dp.setAttribute('available-dates', JSON.stringify({
-        month: monthKey,
-        dates: Object.keys(monthDates).sort(),
-        timeSlots: monthDates,
-      }));
+      const slots = Array.isArray(payload) ? payload : [];
+      dp.setAttribute('available', JSON.stringify(slots));
     } catch {
       // Availability fetch failure is non-fatal; the picker shows no dates.
     }

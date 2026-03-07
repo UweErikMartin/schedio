@@ -1,6 +1,6 @@
 ﻿// Import existing components so they self-register before we use them.
 import '../x-service-picker.js';
-import '../x-date-time-picker.js';
+import '../x-multi-date-time-picker.js';
 import '../x-toast.js';
 import '../manage/booking-manager.js';
 
@@ -196,17 +196,8 @@ export class BookingApp extends HTMLElement {
 	/** @type {string} */
 	#serviceName = '';
 
-	/** @type {string} */
-	#selectedDate = '';
-
-	/** @type {string} */
-	#selectedTime = '';
-
-	/** @type {number} */
-	#activeYear = 0;
-
-	/** @type {number} */
-	#activeMonth = 0;
+	/** @type {string[]} ISO 8601 datetime strings selected in the multi-picker */
+	#selectedSlots = [];
 
 	constructor() {
 		super();
@@ -214,8 +205,16 @@ export class BookingApp extends HTMLElement {
 	}
 
 	connectedCallback() {
-		// Management-link mode: ?id=<bookingID>&token=<signedToken>
-		const params = new URLSearchParams(window.location.search);
+		// Session management-link mode: ?session_id=<id>&session_token=<signedToken>
+		const params      = new URLSearchParams(window.location.search);
+		const sessionId   = params.get('session_id');
+		const sessionToken = params.get('session_token');
+		if (sessionId && sessionToken) {
+			this.#renderSessionManagementMode(sessionId, sessionToken);
+			return;
+		}
+
+		// Legacy single-booking management-link mode: ?id=<bookingID>&token=<signedToken>
 		const bookingId = params.get('id');
 		const token     = params.get('token');
 		if (bookingId && token) {
@@ -229,6 +228,15 @@ export class BookingApp extends HTMLElement {
 		this.#initialize().catch((err) => {
 			console.error('[x-booking-app] initialization failed', err);
 		});
+	}
+
+	#renderSessionManagementMode(sessionId, sessionToken) {
+		const root = this.shadowRoot;
+		root.innerHTML = '';
+		const manager = document.createElement('x-booking-manager');
+		manager.setAttribute('session-id', sessionId);
+		manager.setAttribute('session-token', sessionToken);
+		root.appendChild(manager);
 	}
 
 	#renderManagementMode(bookingId, token) {
@@ -263,17 +271,15 @@ export class BookingApp extends HTMLElement {
 						</div>
 
 						<div class="field-group" id="datetime-group">
-								<span class="field-group-label">Termin wählen</span>
-								<p class="field-group-hint">
-									Wähle einen passenden Termin und eine passende Uhrzeit aus.
+							<span class="field-group-label">Termin wählen</span>
+							<p class="field-group-hint">
+								Wähle einen passenden Termin und eine passende Uhrzeit aus.
 							</p>
-							<x-date-time-picker
-								id="date-time-picker"
+							<x-multi-date-time-picker
+								id="multi-picker"
 								data-availability-endpoint="api/v1/availability">
-							</x-date-time-picker>
+							</x-multi-date-time-picker>
 						</div>
-
-						<div id="selection-error" class="error-banner" hidden></div>
 
 						<button class="button" id="next-btn" type="button" disabled>
 							Weiter
@@ -359,60 +365,22 @@ export class BookingApp extends HTMLElement {
 
 	#wirePickers() {
 		const sp = this.shadowRoot.getElementById('service-picker');
-		const dp = this.shadowRoot.getElementById('date-time-picker');
+		const mp = this.shadowRoot.getElementById('multi-picker');
 		const nextBtn = this.shadowRoot.getElementById('next-btn');
 
 		// ─ Service picker ─
 		sp.addEventListener('service-change', async (e) => {
 			this.#serviceId   = e.detail?.uid         || '';
 			this.#serviceName = e.detail?.serviceName || '';
-			if (this.#activeYear && this.#activeMonth) {
-				await this.#fetchAndApplyAvailability(this.#activeYear, this.#activeMonth);
-			}
+			await this.#fetchAndApplyAllMonths();
 			this.#syncNextState();
 		});
 
-		// ─ Date/time picker ─
-		dp.addEventListener('x-date-time-picker-initialized', async (e) => {
-			const year = Number(e.detail?.year);
-			const month = Number(e.detail?.month);
-			if (year && month) {
-				this.#activeYear = year;
-				this.#activeMonth = month;
-				await this.#fetchAndApplyAvailability(year, month);
-			}
-		});
-
-		dp.addEventListener('x-date-time-picker-month-selected', async (e) => {
-			const year = Number(e.detail?.year);
-			const month = Number(e.detail?.month);
-			if (year && month) {
-				this.#activeYear = year;
-				this.#activeMonth = month;
-				await this.#fetchAndApplyAvailability(year, month);
-			}
-		});
-
-		dp.addEventListener('x-date-time-picker-date-selected', (e) => {
-			this.#selectedDate = e.detail?.date || '';
-			const slots = Array.isArray(e.detail?.timeSlots) ? e.detail.timeSlots : [];
-			if (slots.length > 0) {
-				const current = (dp.getAttribute('selected-time') || '').trim();
-				const time = (current && slots.includes(current)) ? current : slots[0];
-				dp.setAttribute('selected-time-source', 'auto');
-				dp.setAttribute('selected-time', time);
-				this.#selectedTime = time;
-			} else {
-				this.#selectedTime = '';
-			}
+		// ─ Multi date/time picker ─
+		mp.addEventListener('x-multi-date-time-picker-slots-changed', (e) => {
+			this.#selectedSlots = Array.isArray(e.detail?.slots) ? e.detail.slots : [];
 			this.#syncNextState();
 		});
-
-		const timeObserver = new MutationObserver(() => {
-			this.#selectedTime = (dp.getAttribute('selected-time') || '').trim();
-			this.#syncNextState();
-		});
-		timeObserver.observe(dp, { attributes: true, attributeFilter: ['selected-time'] });
 
 		// ─ "Weiter" button → show contact view ─
 		nextBtn.addEventListener('click', () => {
@@ -481,11 +449,12 @@ export class BookingApp extends HTMLElement {
 			});
 			const sessionId = sessionRes.id;
 
-			// 2. Add the booking line
-			const startISO = this.#buildStartISO();
-			await this.#apiFetch(`api/v1/sessions/${sessionId}/bookings`, 'POST', {
-				start: startISO,
-			});
+			// 2. Add one booking line per selected slot.
+			for (const startISO of this.#selectedSlots) {
+				await this.#apiFetch(`api/v1/sessions/${sessionId}/bookings`, 'POST', {
+					start: startISO,
+				});
+			}
 
 			// 3. Submit with contact details. The server sends the confirmation
 			//    e-mail synchronously and reports the result in the response body.
@@ -497,8 +466,8 @@ export class BookingApp extends HTMLElement {
 				timezone:   Intl.DateTimeFormat().resolvedOptions().timeZone,
 			});
 
-			// Show success view — the booking is confirmed regardless of e-mail status.
-			const dateLabel = this.#formatDateLabel();
+				// Show success view — the booking is confirmed regardless of e-mail status.
+			const dateLabel = this.#formatSlotsLabel();
 			this.shadowRoot.getElementById('success-msg').textContent =
 				`Deine Anfrage für ${dateLabel} wurde erfolgreich übermittelt.`;
 			this.#showView('success');
@@ -537,22 +506,13 @@ export class BookingApp extends HTMLElement {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Returns the start datetime for the API call.
-	 * selectedTime is now the original UTC RFC-3339 string from the server,
-	 * so it can be submitted directly without any local-time reconstruction.
-	 * @returns {string} RFC 3339 UTC start datetime, e.g. "2026-03-02T08:00:00Z"
+	 * Formats a single ISO datetime string into a human-readable label.
+	 * @param {string} iso
+	 * @returns {string}
 	 */
-	#buildStartISO() {
-		return this.#selectedTime;
-	}
-
-	/** @returns {string} Human-readable appointment label */
-	#formatDateLabel() {
-		if (!this.#selectedTime) return 'den gewählten Termin';
+	#formatISO(iso) {
 		try {
-			// selectedTime is the UTC RFC-3339 string from the server; new Date() parses it
-			// correctly and toLocaleString() renders in the browser's local timezone.
-			const d = new Date(this.#selectedTime);
+			const d = new Date(iso);
 			const locale = navigator.languages?.[0] ?? navigator.language ?? 'de-DE';
 			const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 			return d.toLocaleString(locale, {
@@ -565,21 +525,28 @@ export class BookingApp extends HTMLElement {
 				timeZone,
 			});
 		} catch {
-			return this.#selectedDate || 'den gewählten Termin';
+			return iso;
 		}
+	}
+
+	/** @returns {string} Human-readable label for all selected slots */
+	#formatSlotsLabel() {
+		if (this.#selectedSlots.length === 0) return 'den gewählten Termin';
+		return this.#selectedSlots.map((s) => this.#formatISO(s)).join(', ');
 	}
 
 	/** Populates the appointment summary box in the contact view. */
 	#updateAppointmentSummary() {
 		const box = this.shadowRoot.getElementById('appointment-summary');
 		const serviceName = this.#serviceName || 'Gewählte Behandlung';
-		box.textContent = `${serviceName} · ${this.#formatDateLabel()}`;
+		const slotLabels = this.#selectedSlots.map((s) => this.#formatISO(s)).join('\n');
+		box.textContent = `${serviceName}\n${slotLabels}`;
 	}
 
 	#syncNextState() {
 		const btn = this.shadowRoot.getElementById('next-btn');
 		if (!btn) return;
-		btn.disabled = !(this.#serviceId && this.#selectedDate && this.#selectedTime);
+		btn.disabled = !(this.#serviceId && this.#selectedSlots.length > 0);
 	}
 
 	#showError(view, message) {
@@ -632,7 +599,7 @@ export class BookingApp extends HTMLElement {
 
 	async #initialize() {
 		await customElements.whenDefined('x-service-picker');
-		await customElements.whenDefined('x-date-time-picker');
+		await customElements.whenDefined('x-multi-date-time-picker');
 		await customElements.whenDefined('x-toast');
 
 		const sp = this.shadowRoot.getElementById('service-picker');
@@ -645,10 +612,8 @@ export class BookingApp extends HTMLElement {
 			}
 			this.#serviceId = services[0]?.uid || '';
 			this.#serviceName = services[0]?.name || '';
-			// The date-time picker may have already fired its initialized event
-			// before this async load finished, so trigger availability now.
-			if (this.#serviceId && this.#activeYear && this.#activeMonth) {
-				await this.#fetchAndApplyAvailability(this.#activeYear, this.#activeMonth);
+			if (this.#serviceId) {
+				await this.#fetchAndApplyAllMonths();
 			}
 		} catch (err) {
 			console.error('[x-booking-app] service load failed', err);
@@ -690,48 +655,47 @@ export class BookingApp extends HTMLElement {
 	 * @param {number} year
 	 * @param {number} month  (1-based)
 	 */
-	async #fetchAndApplyAvailability(year, month) {
-		const dp = this.shadowRoot.getElementById('date-time-picker');
-		if (!dp) return;
-		// Don't fetch until a service is selected – the server requires service_id.
-		if (!this.#serviceId) return;
-		try {
-			const availability = await this.#loadAvailability(year, month);
-			dp.setAttribute('available-dates', JSON.stringify(availability));
-		} catch (err) {
-			console.error('[x-booking-app] availability fetch failed', err);
+	/**
+	 * Fetches availability for the current month and 5 subsequent months,
+	 * feeding all slots into the multi-picker as a merged flat array.
+	 */
+	async #fetchAndApplyAllMonths() {
+		const mp = this.shadowRoot.getElementById('multi-picker');
+		if (!mp || !this.#serviceId) return;
+		const now = new Date();
+		const allSlots = new Set();
+		for (let i = 0; i < 6; i++) {
+			const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
+			const year = date.getFullYear();
+			const month = date.getMonth() + 1; // 1-based
+			try {
+				const slots = await this.#loadAvailabilityMonth(year, month);
+				slots.forEach(s => allSlots.add(s));
+			} catch (err) {
+				console.error(`[x-booking-app] availability fetch failed for ${year}-${month}`, err);
+			}
 		}
+		mp.setAttribute('available', JSON.stringify([...allSlots].sort()));
 	}
 
 	/**
+	 * Fetches availability for one calendar month and returns a flat sorted
+	 * array of UTC ISO 8601 datetime strings.
 	 * @param {number} year
 	 * @param {number} month  (1-based)
-	 * @returns {Promise<{month:string, dates:string[], timeSlots:Record<string,string[]>}>}
+	 * @returns {Promise<string[]>}
 	 */
-	async #loadAvailability(year, month) {
-		const dp = this.shadowRoot.getElementById('date-time-picker');
-		const endpoint = (dp?.getAttribute('data-availability-endpoint') || 'api/v1/availability').trim();
+	async #loadAvailabilityMonth(year, month) {
 		const monthKey = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
-		const sep = endpoint.includes('?') ? '&' : '?';
 		const svcParam = this.#serviceId
 			? `&service_id=${encodeURIComponent(this.#serviceId)}`
 			: '';
-
-		const res = await fetch(`${endpoint}${sep}period=${encodeURIComponent(monthKey)}${svcParam}`);
+		const res = await fetch(`api/v1/availability?period=${encodeURIComponent(monthKey)}${svcParam}`);
 		if (!res.ok) {
 			throw new Error(`availability fetch failed: ${res.status}`);
 		}
 		const payload = await res.json();
-		const monthDates =
-			payload?.months?.[monthKey] && typeof payload.months[monthKey] === 'object'
-				? payload.months[monthKey]
-				: {};
-
-		return {
-			month: monthKey,
-			dates: Object.keys(monthDates).sort(),
-			timeSlots: monthDates,
-		};
+		return Array.isArray(payload) ? payload : [];
 	}
 }
 
