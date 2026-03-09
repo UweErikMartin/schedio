@@ -41,3 +41,6 @@ pull-secret.yaml
 # .vscode/
 .tmp/
 logs/
+
+# built binaries in repo root
+/schedio
