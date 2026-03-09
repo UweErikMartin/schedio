@@ -27,7 +27,22 @@ func main() {
 	args := config.ParseCommandLineArgs(os.Args)
 	_ = flag.Set("v", strconv.Itoa(args.Verbose))
 
-	klog.Infof("server timezone: %s", time.Now().Location())
+	now := time.Now()
+	tzName := now.Location().String()
+	if tzName == "Local" {
+		if tz := os.Getenv("TZ"); tz != "" {
+			tzName = tz
+		} else {
+			abbrev, offset := now.Zone()
+			sign := "+"
+			if offset < 0 {
+				sign = "-"
+				offset = -offset
+			}
+			tzName = fmt.Sprintf("%s (UTC%s%02d:%02d)", abbrev, sign, offset/3600, (offset%3600)/60)
+		}
+	}
+	klog.Infof("server timezone: %s, startup time: %s", tzName, now.Format(time.RFC3339))
 
 	// MemoryStore implements both CalendarStore and DomainStore; share one
 	// instance so that settings changes (e.g. DefaultCalendarName) are
